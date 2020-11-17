@@ -1,26 +1,82 @@
-import os, fnmatch, shutil, pathlib, sqlite3, time
-from sqlite3 import Error
-
 #▒▒▒▒▒▒▒▒▒▒▒▒ USER OPTIONS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 kasten_name = "my_vault"
 
 
-
-
+#▒▒▒▒▒▒▒▒▒▒▒▒ CREDITS & LICENCE ▒▒▒▒▒▒▒▒▒▒▒▒▒
+# https://writingcooperative.com/zettelkasten-how-one-german-
+#	scholar-was-so-freakishly-productive-997e4e0ca125
+# https://www.sqlitetutorial.net/sqlite-python/
+# Personal thanks to folks from ToughSF who helped me.
+# 
+# MIT License
+# Copyright (c) 2020 Roman Yeremenko
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ SCRIPT BODY ▒▒▒▒▒▒▒▒▒▒▒▒▒
-#Init
+#Init stuff
+import os, fnmatch, shutil, pathlib, sqlite3, time
+from sqlite3 import Error
+
 path = os.path.join(os.getcwd(), kasten_name)
+db_path = os.path.join(os.getcwd(), kasten_name + '_index.db')
 pathlib.Path(path).mkdir(parents=True, exist_ok=True)
 
+#SQL schemas
+create_main_table = '''
+	CREATE TABLE IF NOT EXISTS main (
+		id integer PRIMARY KEY,
+		z_title text NOT NULL,
+		z_path text NOT NULL
+	); '''
+
+create_link_table = '''
+	CREATE TABLE IF NOT EXISTS links (
+		id integer PRIMARY KEY,
+		l_from integer NOT NULL,
+		l_to integer NOT NULL
+	); '''
+
+insert_main = '''
+	INSERT INTO main (
+		z_title,
+		z_path
+	)
+	VALUES(
+		?, ?
+	) '''
+
+insert_links = '''
+	INSERT INTO links (
+		l_from,
+		l_to
+	)
+	VALUES(
+		?, ?
+	) '''
+	
+
 #Just fancy stuff
-banner_git      = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒GIT MENU▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
-banner_log      = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒LOG▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
+banner_git	  = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒GIT MENU▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
+banner_log	  = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒LOG▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
 banner_commit   = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒COMMITTING▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
 banner_revert   = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒REVERTING▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
 banner_hreset   = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒HARD RESETTING▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
-banner_zettel     = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ZETTEL MENU▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
+banner_zettel	 = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ZETTEL MENU▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
 divider = '-------------------------------------------------------'
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ GIT MENU ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -137,141 +193,66 @@ def main_menu():
 		print('')
 		print('(t) - git menu')
 		print('(q) - quit')
-	
-	#Main sync function
-	def flietype_sync(pattern, timestamp_file):
 		
-		#CREATE TABLE IF NOT EXISTS main (
-		create_main_table = '''
-			CREATE TABLE IF NOT EXISTS main (
-				id integer PRIMARY KEY,
-				zettel_title text NOT NULL,
-				zettel_path text NOT NULL
-		); '''
+	def parse_zettel(z_path):
 		
-		create_link_table = '''
-			CREATE TABLE IF NOT EXISTS links (
-				id integer PRIMARY KEY,
-				link_from integer NOT NULL,
-				link_to integer NOT NULL
-		); '''
+		#expected parsed data
+		data = {
+			'title' : ''
+		}
 		
-		insert_main = '''
-			INSERT INTO main (
-				zettel_title,
-				zettel_path
-			)
-			VALUES(
-				?, ?
-			) '''
+		# open the file and read through it line by line
+		with open(z_path, 'r') as f:
+			for line in f:
+				parsed = line.strip().split(":")
+				w = parsed[0].strip()
+				
+				if (w == "Title") or (w == "title"):
+					data['title'] = parsed[1]
+				
+		return data
 			
-		insert_links = '''
-			INSERT INTO links (
-				link_from,
-				link_to
-			)
-			VALUES(
-				?, ?
-			) '''
-			
-		sql_u = '''
-			UPDATE projects 
-				SET
-					name = ?
-				WHERE
-					id = ?
-		'''
 		
-		#connect
+	def update_db():
+		
+		#remove existing db
+		os.remove(db_path)
+		
+		#create new db
 		conn = None
 		try:
-			conn = sqlite3.connect(kasten_name+'.db')
-			print(sqlite3.version)
+			conn = sqlite3.connect(db_path)
 		except Error as e:
 			print(e)
 		finally:
 			if conn:
 				try:
 					c = conn.cursor()
+					
+					#create tables
 					c.execute(create_main_table)
 					c.execute(create_link_table)
 					
-					start = time.time()
-					for i in range(0, 1000):
-						zettel_title = 'zettel_' + str(i)
-						zettel_path = path + zettel_title
-						c.execute(insert_main, (zettel_title, zettel_path,))
+					#populate tables
+					time_start = time.time()
+					for root, dirs, files in os.walk(path):
+						for name in files:
+							z_path = os.path.join(root, name)
+							z_title = parse_zettel(z_path)['title']
+							c.execute(insert_main, (z_title, z_path,))
 					
 					for i in range(0, 10000):
-						link_from = i
-						link_to = i+53
-						c.execute(insert_links, (link_from, link_to,))
-						
-					end = time.time()
-					print(end - start)
-					#for i in range(0, 100000):
-						#c.execute(sql_u, (str(i),i))
+						l_from = i
+						l_to = i+53
+						c.execute(insert_links, (l_from, l_to,))
 					
 					conn.commit()
-					
-	
-					#c.execute("SELECT * FROM main")
-					c.execute("SELECT * FROM main WHERE zettel_title=?", ('zettel_1',))
-					rows = c.fetchall()
-					
-					for row in rows:
-						print(row)
-						c.execute("SELECT * FROM links WHERE link_from=?", (row[0],))
-						rows = c.fetchall()
-						for row in rows:
-							print(row)
-							c.execute("SELECT * FROM main WHERE id=?", (row[2],))
-							rows = c.fetchall()
-							for row in rows:
-								print(row)
-					
+					time_end = time.time()
+					print('database rebuilt in: ', time_end - time_start)
+				
 				except Error as e:
 					print(e)
 				conn.close()
-				os.system('rm *.db')
-		
-		
-		
-		queue_names = []
-		timestamps_new = []
-		timestamps_old = []
-		
-		#read existing timestamps
-		try:
-			timestamps_file = open(timestamp_file, 'r') 
-			lines = timestamps_file.readlines() 
-			for line in lines: 
-				timestamps_old.append(line.strip())
-		except:
-			print(divider)
-			print('no timestamp file: '+timestamp_file+' exist, it will be created')
-			print(divider)
-			
-		#get the current timestamps & paths from source directory
-		for root, dirs, files in os.walk(path):
-			for name in files:
-				if fnmatch.fnmatch(name, pattern):
-					queue_names.append(name)
-					file_path = os.path.join(root, name)
-					timestamps_new.append(os.path.getmtime(file_path))
-					
-		#show added or modified files
-		for entry in range(len(timestamps_new)):
-			try:
-				if float(timestamps_new[entry]) != float(timestamps_old[entry]):
-					print('modified:', timestamps_new[entry], queue_names[entry])
-			except:
-				print('added:', timestamps_new[entry], queue_names[entry])
-		
-		#write (new) timestamps
-		with open(timestamp_file, 'w') as f:
-		    for item in timestamps_new:
-		        f.write("%s\n" % item)
 	
 	def get_entry_num(pattern):
 		num = 0
@@ -281,16 +262,11 @@ def main_menu():
 					num += 1
 		return num
 	
-	#Functions-wrappers for commands
 	#Higher-level functions
-	def sync_files():
-		flietype_sync('*.md', '.timestamp_md')
-		
-	
 	def statistics():
 		entries_num = get_entry_num('*.md')
 		print(divider)
-		print('current number of zettels is: ' + str(entries_num))
+		print('current number of zettel .md files is: ' + str(entries_num))
 		print(divider)
 		
 	def tree():
@@ -309,8 +285,7 @@ def main_menu():
 				
 		if inp == "":
 			os.system('clear')
-			#update()
-			sync_files()
+			update_db()
 			statistics()
 		if inp == "tree":
 			os.system('clear')
