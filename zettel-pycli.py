@@ -4,8 +4,9 @@ kasten_name = "my_vault"
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CREDITS & LICENCE ▒▒▒▒▒▒▒▒▒▒▒▒▒
 # https://writingcooperative.com/zettelkasten-how-one-german-
-#	scholar-was-so-freakishly-productive-997e4e0ca125
-# https://www.sqlitetutorial.net/sqlite-python/
+#	scholar-was-so-freakishly-productive-997e4e0ca125 - idea
+# https://www.sqlitetutorial.net/sqlite-python/ - db oos
+# https://stackoverflow.com/a/63529754 - md links parsing
 # Personal thanks to folks from ToughSF who helped me.
 # 
 # MIT License
@@ -29,7 +30,7 @@ kasten_name = "my_vault"
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ SCRIPT BODY ▒▒▒▒▒▒▒▒▒▒▒▒▒
 #Init stuff
-import os, fnmatch, shutil, pathlib, sqlite3, time
+import os, fnmatch, shutil, pathlib, sqlite3, time, re
 from sqlite3 import Error
 
 path = os.path.join(os.getcwd(), kasten_name)
@@ -194,21 +195,41 @@ def main_menu():
 		print('(t) - git menu')
 		print('(q) - quit')
 		
-	def parse_zettel(z_path):
+	def find_md_links(md):
+		INLINE_LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
+	
+		links = list(INLINE_LINK_RE.findall(md))
 		
+		return links
+
+		
+	def parse_zettel(z_path):
 		#expected parsed data
 		data = {
-			'title' : ''
+			'title' : '',
+			'tags' : [],
 		}
 		
 		# open the file and read through it line by line
-		with open(z_path, 'r') as f:
-			for line in f:
-				parsed = line.strip().split(":")
-				w = parsed[0].strip()
+		f = open(z_path, 'r')
+		
+		#find links
+		print(find_md_links(f.read()))
+		
+		#parse keywords
+		for line in f:
+			parsed = line.strip().split(":")
+			w = parsed[0].strip()
+			
+			if (w == "Title") or (w == "title"):
+				data['title'] = parsed[1]
+			
+			if (w == "Tags") or (w == "tags"):
+				data['tags'] = [tag.strip() for tag in parsed[1].split(',')]
+			
 				
-				if (w == "Title") or (w == "title"):
-					data['title'] = parsed[1]
+		print('Title: ', data['title'])
+		print('Tags: ', data['tags'])
 				
 		return data
 			
