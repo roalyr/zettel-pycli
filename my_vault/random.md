@@ -8,5 +8,3 @@
 
 
 [ZETTEL LINKS]
-
-

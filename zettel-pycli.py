@@ -38,19 +38,14 @@ db_path = os.path.join(os.getcwd(), kasten_name + '_index.db')
 pathlib.Path(path).mkdir(parents=True, exist_ok=True)
 zettel_template_name = "_template.md"
 
+marker_title = '[TITLE]'
+marker_tags = '[TAGS]'
+marker_links = '[ZETTEL LINKS]'
+marker_body = '[BODY]'
+
 #A template if you need one
-zettel_template = '''[TITLE]
-
-
-[BODY]
-
-
-[TAGS]
-
-
-[ZETTEL LINKS]
-
-'''
+zettel_template = '\n\n\n'.join([marker_title,  
+marker_body, marker_tags, marker_links, ''])
 
 #SQL schemas
 create_main_table = '''
@@ -124,7 +119,8 @@ banner_log	  = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒�
 banner_commit   = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒COMMITTING▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
 banner_revert   = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒REVERTING▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
 banner_hreset   = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒HARD RESETTING▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
-banner_zettel	 = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ZETTEL MENU▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
+banner_main	 = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒MAIN MENU▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
+banner_zettel_ops	 = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ZETTEL ACTIONS▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
 divider = '-------------------------------------------------------'
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ GIT MENU ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -232,21 +228,19 @@ def git_menu():
 #▒▒▒▒▒▒▒▒▒▒▒▒ ZETTEL MENU ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def main_menu():
 	
-	def print_main_ops():
-		print('')
-		print(banner_zettel)
-		print('() - update the index and show brief statistics')
-		print('(tree) - use "tree" command to show files')
-		print('(temp) - write a template zettel into the kasten')
-		print(banner_zettel)
-		print('')
-		print('(t) - git menu')
-		print('(q) - quit')
-		
+	
+	
 	def gen_template():
 		f = open(path + "/" + zettel_template_name, "w")
 		f.write(zettel_template)
 		f.close()
+		
+	def make_new():
+		inp = input("enter zettel name » ").strip()
+		f = open(path + "/" + inp + '.md', "w")
+		f.write(zettel_template)
+		f.close()
+		return inp
 		
 	def find_md_links(md):
 		INLINE_LINK_RE = re.compile(r'\(([^)]+)\)')
@@ -258,7 +252,7 @@ def main_menu():
 		text = list(COMMA_SEP_CONT.findall(md))
 		return text
 		
-	def parse_zettel(z_path):
+	def parse_zettel_metadata(z_path):
 		#expected parsed data
 		data = {
 			'title' : '',
@@ -277,25 +271,25 @@ def main_menu():
 		#parse keywords
 		for line in f:
 			
-			if "[BODY]" in line:
+			if marker_body in line:
 				reading_title = False
 				reading_tags = False
 				reading_links = False
 				continue
 		
-			if "[TITLE]" in line:
+			if marker_title in line:
 				reading_title = True
 				reading_tags = False
 				reading_links = False
 				continue
 			
-			if "[TAGS]" in line:
+			if marker_tags in line:
 				reading_title = False
 				reading_tags = True
 				reading_links = False
 				continue
 		
-			if "[ZETTEL LINKS]" in line:
+			if marker_links in line:
 				reading_title = False
 				reading_tags = False
 				reading_links = True
@@ -314,6 +308,32 @@ def main_menu():
 		#print('Tags: ', data['tags'])
 		#print('Links: ', data['links'])
 		return data
+		
+	def parse_zettel_body(z_path):
+		# open the file and read through it line by line
+		f = open(z_path, 'r')
+		
+		zettel_body = ''
+		reading = False
+		
+		#parse keywords
+		for line in f:
+			
+			if marker_body in line:
+				reading = True
+				continue
+		
+			if (marker_title in line) or (marker_tags in line) or (marker_links in line):
+				reading = False
+				continue
+			
+			if reading:
+				zettel_body += line
+					
+		#print('Title: ', data['title'])
+		#print('Tags: ', data['tags'])
+		#print('Links: ', data['links'])
+		return zettel_body
 			
 		
 	def update_db():
@@ -353,7 +373,7 @@ def main_menu():
 								
 							full_path = os.path.join(root, name)
 							z_path = name
-							z_title = parse_zettel(full_path)['title']
+							z_title = parse_zettel_metadata(full_path)['title']
 							c.execute(insert_main, (z_title, z_path,))
 							
 					conn.commit()
@@ -366,7 +386,7 @@ def main_menu():
 							
 							#get the links to which zettel refers to
 							full_path = os.path.join(root, name)
-							links = parse_zettel(full_path)['links']
+							links = parse_zettel_metadata(full_path)['links']
 							
 							#get the current zettel id
 							c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
@@ -397,7 +417,7 @@ def main_menu():
 							
 							#get the links to which zettel refers to
 							full_path = os.path.join(root, name)
-							tags = parse_zettel(full_path)['tags']
+							tags = parse_zettel_metadata(full_path)['tags']
 							
 							#get the current zettel id
 							c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
@@ -425,6 +445,65 @@ def main_menu():
 				if fnmatch.fnmatch(name, pattern):
 					num += 1
 		return num
+		
+	def print_zettel_ops():
+		print('')
+		print(banner_zettel_ops)
+		print('() - read current zettel')
+		print(banner_zettel_ops)
+		print('')
+		print('(q) - quit')
+		
+	def zettel_ops(inp, file_path):
+		inp = input("ZETTEL OPS ('?' for commands) » ").strip()
+		
+		if inp == "":
+			os.system('clear')
+			print(parse_zettel_body(file_path))
+		elif inp == "?":
+			print_zettel_ops()
+		elif inp == 'q':
+			return True
+			
+	
+	def increm_input_path():
+		file_name = ''
+		
+		while True:
+			inp = input(file_name + " < ").strip()
+			file_name += inp
+			for root, dirs, files in os.walk(path):
+				keep_matching = False
+				for name in files:
+					name_no_ext = name.split('.')[0]
+					
+					#check for direct match
+					if file_name == name_no_ext:
+						
+						print('found exact zettel:', name_no_ext)
+						print('what shall we do next?')
+						file_path = os.path.join(root, name)
+						stop = False
+						print_zettel_ops()
+						while not stop:
+							stop = zettel_ops(inp, file_path)
+						else:
+							return
+						
+					
+					#else show multiple matches
+					if file_name in name_no_ext:
+						keep_matching = True
+						print('found:', name_no_ext)
+						
+				#break if neither name matches
+				if not keep_matching:
+					print('no zettel found')
+					return
+				
+					
+			#print(file_path)
+			
 	
 	#Higher-level functions
 	def statistics():
@@ -440,11 +519,36 @@ def main_menu():
 		print(divider)
 		
 	def make_template():
-		os.system('clear')
 		gen_template()
 		print(divider)
 		print('generated a non-indexed template zettel:', zettel_template_name)
 		print(divider)
+	
+	def find_file():
+		print(divider)
+		print('start entering file name (character, parts of words, or whole name) and get incremental results')
+		print(divider)
+		increm_input_path()
+		
+	def make_new_zettel():
+		zettel_name = make_new()
+		print(divider)
+		print('generated a new empty zettel from template:', zettel_name)
+		print(divider)
+		
+	def print_main_ops():
+		print('')
+		print(banner_main)
+		print('() - update the index and show brief statistics')
+		print('(n) - make new empty zettel')
+		print('(ff) - incrementally enter filename to find zettel')
+		print('(tree) - use "tree" command to show files')
+		print('(temp) - write a template zettel into the kasten')
+		print(banner_main)
+		print('')
+		print('(t) - git menu')
+		print('(q) - quit')
+		
 	
 	#while True:
 	print_main_ops()
@@ -458,6 +562,12 @@ def main_menu():
 			os.system('clear')
 			update_db()
 			statistics()
+		if inp == "n":
+			os.system('clear')
+			make_new_zettel()
+		if inp == "ff":
+			os.system('clear')
+			find_file()
 		if inp == "tree":
 			os.system('clear')
 			tree()
