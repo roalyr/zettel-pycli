@@ -45,18 +45,25 @@ create_main_table = '''
 		z_path text NOT NULL
 	); '''
 
-create_link_table = '''
+create_links_table = '''
 	CREATE TABLE IF NOT EXISTS links (
 		id integer PRIMARY KEY,
-		l_from integer NOT NULL,
-		l_to integer NOT NULL
+		z_id_from integer NOT NULL,
+		z_path_to integer NOT NULL
 	); '''
 	
 create_invalid_links_table = '''
 	CREATE TABLE IF NOT EXISTS invalid_links (
 		id integer PRIMARY KEY,
-		zettel text NOT NULL,
-		link text NOT NULL
+		z_id_from integer NOT NULL,
+		z_path_to text NOT NULL
+	); '''
+
+create_tags_table = '''
+	CREATE TABLE IF NOT EXISTS tags (
+		id integer PRIMARY KEY,
+		z_id integer NOT NULL,
+		tag text NOT NULL
 	); '''
 
 insert_main = '''
@@ -70,8 +77,8 @@ insert_main = '''
 
 insert_links = '''
 	INSERT INTO links (
-		l_from,
-		l_to
+		z_id_from,
+		z_path_to
 	)
 	VALUES(
 		?, ?
@@ -79,17 +86,17 @@ insert_links = '''
 	
 insert_invalid_links = '''
 	INSERT INTO invalid_links (
-		zettel,
-		link
+		z_id_from,
+		z_path_to
 	)
 	VALUES(
 		?, ?
 	) '''
 	
-insert_links = '''
-	INSERT INTO links (
-		l_from,
-		l_to
+insert_tags = '''
+	INSERT INTO tags (
+		z_id,
+		tag
 	)
 	VALUES(
 		?, ?
@@ -309,8 +316,9 @@ def main_menu():
 					
 					#create tables
 					c.execute(create_main_table)
-					c.execute(create_link_table)
+					c.execute(create_links_table)
 					c.execute(create_invalid_links_table)
+					c.execute(create_tags_table)
 					
 					#populate tables
 					time_start = time.time()
@@ -338,22 +346,41 @@ def main_menu():
 							c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
 							current_zettel_id = c.fetchall()[0][0]
 							
-							for l_to in links:
-								#see if links point out to existing nodes
-								c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (l_to,))
+							#see if links point out to existing nodes
+							for z_path_to in links:
+								c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (z_path_to,))
 								found_zettel = c.fetchall()
 								
 								if found_zettel:
-									linked_zettel_id = found_zettel[0][0]
-									print('Link from: ', current_zettel_id)
-									print('Link to: ', linked_zettel_id)
-									c.execute(insert_links, (current_zettel_id, linked_zettel_id,))
+									valid_zettel_id = found_zettel[0][0]
+									#print('Link from: ', current_zettel_id)
+									#print('Link to: ', linked_zettel_id)
+									c.execute(insert_links, (current_zettel_id, valid_zettel_id,))
 								
 								else:
-									print('invalid link: ', l_to)
-									c.execute(insert_invalid_links, (name, l_to,))
+									#print('invalid link: ', z_path_to)
+									c.execute(insert_invalid_links, (current_zettel_id, z_path_to,))
 					
 					conn.commit()
+					
+					#tags table
+					for root, dirs, files in os.walk(path):
+						for name in files:
+							
+							#get the links to which zettel refers to
+							full_path = os.path.join(root, name)
+							tags = parse_zettel(full_path)['tags']
+							
+							#get the current zettel id
+							c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
+							current_zettel_id = c.fetchall()[0][0]
+							
+							#write the tags to table
+							for tag in tags:
+								c.execute(insert_tags, (current_zettel_id, tag,))
+							
+					conn.commit()
+					
 					time_end = time.time()
 					print('database rebuilt in: ', time_end - time_start)
 				
