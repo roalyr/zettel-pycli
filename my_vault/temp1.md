@@ -1,8 +1,22 @@
-Title : temporary file 1
-Tags : test1, test2, test3
+[TITLE]
+This is a template zettel card, it has many fields.
 
+[BODY]
+This is a test card. [non-zettel link](some_link.md)
+It is used for defining a template.
 
-[temporary file 1](temp2.md)
-[temporary file 2](temp3.md)
-[[temp5]]
-[temp6.md] - an invalid link
+[TAGS]
+first tag, some tag here, extra tag
+another tag
+template,, manual,
+test, tags, links
+title
+zettel, stuff
+
+[ZETTEL LINKS] 
+[temp1](temp1.md), [temp2](temp2.md) 
+[temp3](temp3.md), [temp4](temp4.md)
+[temp5](temp5.md),
+[temp6](temp6.md),
+[temp7](temp7.md)
+[temp8](temp8.md) [temp9](temp9.md) 

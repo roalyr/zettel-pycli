@@ -196,40 +196,70 @@ def main_menu():
 		print('(q) - quit')
 		
 	def find_md_links(md):
-		INLINE_LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
-	
+		INLINE_LINK_RE = re.compile(r'\(([^)]+)\)')
 		links = list(INLINE_LINK_RE.findall(md))
-		
 		return links
-
+	
+	def find_comma_separated(md):
+		COMMA_SEP_CONT = re.compile(r'(.+?)(?:,\s*|$)')
+		text = list(COMMA_SEP_CONT.findall(md))
+		return text
 		
 	def parse_zettel(z_path):
 		#expected parsed data
 		data = {
 			'title' : '',
 			'tags' : [],
+			'links' : [],
 		}
 		
 		# open the file and read through it line by line
 		f = open(z_path, 'r')
 		
-		#find links
-		print(find_md_links(f.read()))
+		#a switch flag to read links in tge end of the file
+		reading_title = False
+		reading_links = False
+		reading_tags = False
 		
 		#parse keywords
 		for line in f:
-			parsed = line.strip().split(":")
-			w = parsed[0].strip()
 			
-			if (w == "Title") or (w == "title"):
-				data['title'] = parsed[1]
+			if "[BODY]" in line:
+				reading_title = False
+				reading_tags = False
+				reading_links = False
+				continue
+		
+			if "[TITLE]" in line:
+				reading_title = True
+				reading_tags = False
+				reading_links = False
+				continue
 			
-			if (w == "Tags") or (w == "tags"):
-				data['tags'] = [tag.strip() for tag in parsed[1].split(',')]
+			if "[TAGS]" in line:
+				reading_title = False
+				reading_tags = True
+				reading_links = False
+				continue
+		
+			if "[ZETTEL LINKS]" in line:
+				reading_title = False
+				reading_tags = False
+				reading_links = True
+				continue
 			
+			if reading_title:
+				data['title'] += line.strip()
 				
+			if reading_tags:
+				data['tags'] += find_comma_separated(line)
+				
+			if reading_links:
+				data['links'] += find_md_links(line)
+					
 		print('Title: ', data['title'])
 		print('Tags: ', data['tags'])
+		print('Links: ', data['links'])
 				
 		return data
 			
