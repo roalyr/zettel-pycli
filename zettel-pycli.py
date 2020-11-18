@@ -51,6 +51,13 @@ create_link_table = '''
 		l_from integer NOT NULL,
 		l_to integer NOT NULL
 	); '''
+	
+create_invalid_links_table = '''
+	CREATE TABLE IF NOT EXISTS invalid_links (
+		id integer PRIMARY KEY,
+		zettel text NOT NULL,
+		link text NOT NULL
+	); '''
 
 insert_main = '''
 	INSERT INTO main (
@@ -61,6 +68,24 @@ insert_main = '''
 		?, ?
 	) '''
 
+insert_links = '''
+	INSERT INTO links (
+		l_from,
+		l_to
+	)
+	VALUES(
+		?, ?
+	) '''
+	
+insert_invalid_links = '''
+	INSERT INTO invalid_links (
+		zettel,
+		link
+	)
+	VALUES(
+		?, ?
+	) '''
+	
 insert_links = '''
 	INSERT INTO links (
 		l_from,
@@ -257,17 +282,19 @@ def main_menu():
 			if reading_links:
 				data['links'] += find_md_links(line)
 					
-		print('Title: ', data['title'])
-		print('Tags: ', data['tags'])
-		print('Links: ', data['links'])
-				
+		#print('Title: ', data['title'])
+		#print('Tags: ', data['tags'])
+		#print('Links: ', data['links'])
 		return data
 			
 		
 	def update_db():
-		
 		#remove existing db
-		os.remove(db_path)
+		try:
+			os.remove(db_path)
+			print('clearing previous database, updating...')
+		except:
+			print('no database to clear, creating...')
 		
 		#create new db
 		conn = None
@@ -283,19 +310,48 @@ def main_menu():
 					#create tables
 					c.execute(create_main_table)
 					c.execute(create_link_table)
+					c.execute(create_invalid_links_table)
 					
 					#populate tables
 					time_start = time.time()
+					links = []
+					
+					#main table
 					for root, dirs, files in os.walk(path):
 						for name in files:
-							z_path = os.path.join(root, name)
-							z_title = parse_zettel(z_path)['title']
+							full_path = os.path.join(root, name)
+							z_path = name
+							z_title = parse_zettel(full_path)['title']
 							c.execute(insert_main, (z_title, z_path,))
+							
+					conn.commit()
 					
-					for i in range(0, 10000):
-						l_from = i
-						l_to = i+53
-						c.execute(insert_links, (l_from, l_to,))
+					#links table, with check
+					for root, dirs, files in os.walk(path):
+						for name in files:
+							
+							#get the links to which zettel refers to
+							full_path = os.path.join(root, name)
+							links = parse_zettel(full_path)['links']
+							
+							#get the current zettel id
+							c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
+							current_zettel_id = c.fetchall()[0][0]
+							
+							for l_to in links:
+								#see if links point out to existing nodes
+								c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (l_to,))
+								found_zettel = c.fetchall()
+								
+								if found_zettel:
+									linked_zettel_id = found_zettel[0][0]
+									print('Link from: ', current_zettel_id)
+									print('Link to: ', linked_zettel_id)
+									c.execute(insert_links, (current_zettel_id, linked_zettel_id,))
+								
+								else:
+									print('invalid link: ', l_to)
+									c.execute(insert_invalid_links, (name, l_to,))
 					
 					conn.commit()
 					time_end = time.time()

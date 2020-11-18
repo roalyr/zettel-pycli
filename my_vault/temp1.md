@@ -8,13 +8,13 @@ It is used for defining a template.
 [TAGS]
 first tag, some tag here, extra tag
 another tag
-template,, manual,
+template, test
 test, tags, links
 title
 zettel, stuff
 
 [ZETTEL LINKS] 
-[temp1](temp1.md), [temp2](temp2.md) 
+[temp2](temp2.md) 
 [temp3](temp3.md), [temp4](temp4.md)
 [temp5](temp5.md),
 [temp6](temp6.md),
