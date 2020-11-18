@@ -36,6 +36,21 @@ from sqlite3 import Error
 path = os.path.join(os.getcwd(), kasten_name)
 db_path = os.path.join(os.getcwd(), kasten_name + '_index.db')
 pathlib.Path(path).mkdir(parents=True, exist_ok=True)
+zettel_template_name = "_template.md"
+
+#A template if you need one
+zettel_template = '''[TITLE]
+
+
+[BODY]
+
+
+[TAGS]
+
+
+[ZETTEL LINKS]
+
+'''
 
 #SQL schemas
 create_main_table = '''
@@ -222,10 +237,16 @@ def main_menu():
 		print(banner_zettel)
 		print('() - update the index and show brief statistics')
 		print('(tree) - use "tree" command to show files')
+		print('(temp) - write a template zettel into the kasten')
 		print(banner_zettel)
 		print('')
 		print('(t) - git menu')
 		print('(q) - quit')
+		
+	def gen_template():
+		f = open(path + "/" + zettel_template_name, "w")
+		f.write(zettel_template)
+		f.close()
 		
 	def find_md_links(md):
 		INLINE_LINK_RE = re.compile(r'\(([^)]+)\)')
@@ -327,6 +348,9 @@ def main_menu():
 					#main table
 					for root, dirs, files in os.walk(path):
 						for name in files:
+							if name == zettel_template_name:
+								continue
+								
 							full_path = os.path.join(root, name)
 							z_path = name
 							z_title = parse_zettel(full_path)['title']
@@ -337,6 +361,8 @@ def main_menu():
 					#links table, with check
 					for root, dirs, files in os.walk(path):
 						for name in files:
+							if name == zettel_template_name:
+								continue
 							
 							#get the links to which zettel refers to
 							full_path = os.path.join(root, name)
@@ -366,6 +392,8 @@ def main_menu():
 					#tags table
 					for root, dirs, files in os.walk(path):
 						for name in files:
+							if name == zettel_template_name:
+								continue
 							
 							#get the links to which zettel refers to
 							full_path = os.path.join(root, name)
@@ -392,6 +420,8 @@ def main_menu():
 		num = 0
 		for root, dirs, files in os.walk(path):
 			for name in files:
+				if name == zettel_template_name:
+					continue
 				if fnmatch.fnmatch(name, pattern):
 					num += 1
 		return num
@@ -400,13 +430,20 @@ def main_menu():
 	def statistics():
 		entries_num = get_entry_num('*.md')
 		print(divider)
-		print('current number of zettel .md files is: ' + str(entries_num))
+		print('current number of your precious zettels is:', entries_num)
 		print(divider)
 		
 	def tree():
 		os.system('tree'+' '+path)
 		print(divider)
 		print('tree rendred')
+		print(divider)
+		
+	def make_template():
+		os.system('clear')
+		gen_template()
+		print(divider)
+		print('generated a non-indexed template zettel:', zettel_template_name)
 		print(divider)
 	
 	#while True:
@@ -424,6 +461,9 @@ def main_menu():
 		if inp == "tree":
 			os.system('clear')
 			tree()
+		if inp == "temp":
+			os.system('clear')
+			make_template()
 		elif inp == "t":
 			os.system('clear')
 			git_menu()
