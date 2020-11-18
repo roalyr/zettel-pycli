@@ -29,7 +29,7 @@ kasten_name = "my_vault"
 
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ SCRIPT BODY ▒▒▒▒▒▒▒▒▒▒▒▒▒
-#Init stuff
+#▒▒▒▒▒▒▒▒▒▒▒▒ INIT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 import os, fnmatch, shutil, pathlib, sqlite3, time, re
 from sqlite3 import Error
 
@@ -112,7 +112,6 @@ insert_tags = '''
 		?, ?
 	) '''
 	
-
 #Just fancy stuff
 banner_git	  = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒GIT MENU▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
 banner_log	  = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒LOG▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
@@ -123,78 +122,79 @@ banner_main	 = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒MAIN ME
 banner_zettel_ops	 = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ZETTEL ACTIONS▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
 divider = '-------------------------------------------------------'
 
-#▒▒▒▒▒▒▒▒▒▒▒▒ GIT MENU ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def git_menu():
 
-	git_log = "git log --branches --oneline -n 20"
-	git_log_1 = "git log --branches --oneline -n 1"
-	git_status = "git status"
-	git_add = "git add . && git status --short"
-	git_push = "git push --all"
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ GIT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+git_log = "git log --branches --oneline -n 20"
+git_log_1 = "git log --branches --oneline -n 1"
+git_status = "git status"
+git_add = "git add . && git status --short"
+git_push = "git push --all"
+
+def print_git_ops():
+	print('')
+	print(banner_git)
+	print('() - current')
+	print('(l) - log')
+	print('(s) - status')
+	print('')
+	print('(a) - add')
+	print('(c) - commit')
+	print('(p) - push')
+	print('')
+	print('(r) - revert')
+	print('(ha) - hard reset')
+	print(banner_git)
+	print('')
+	print('(u) - launch "gitui"')
+	print('(q) - quit to main')
+
+def git_log_f():
+	print(banner_log)
+	os.system(git_log)
+	print(banner_log)
+
+def git_commit_f():
+	print(banner_commit)
+	print('Files added:')
+	os.system(git_add)
+	print('Current head:')
+	os.system(git_log_1)
+	print(banner_commit)
+	commit_name = input("New commit name (' ' to abort) » ").strip()
+	if commit_name =="":
+		return
+	inp = input("Really commit? » ").strip()
+	if inp == "yes":
+		git_commit = "git commit -m "+commit_name
+		os.system(git_commit)
 	
-	def print_git_ops():
-		print('')
-		print(banner_git)
-		print('() - current')
-		print('(l) - log')
-		print('(s) - status')
-		print('')
-		print('(a) - add')
-		print('(c) - commit')
-		print('(p) - push')
-		print('')
-		print('(r) - revert')
-		print('(ha) - hard reset')
-		print(banner_git)
-		print('')
-		print('(u) - launch "gitui"')
-		print('(q) - quit to main')
+def git_revert_f():
+	print(banner_revert)
+	print('Commits:')
+	os.system(git_log)
+	print(banner_revert)
+	commit_name = input("Revert to commit name (' ' to abort) » ").strip()
+	if commit_name =="":
+		return
+	git_revert = "git revert "+commit_name
+	os.system(git_revert)
 	
-	def git_log_f():
-		print(banner_log)
-		os.system(git_log)
-		print(banner_log)
+def git_reset_hard_f():
+	print(banner_hreset)
+	print('Commits:')
+	os.system(git_log)
+	print(banner_hreset)
+	commit_name = input("Reset to commit name (' ' to abort) » ").strip()
+	if commit_name =="":
+		return
+	inp = input("Really? » ").strip()
+	if inp == "yes":
+		git_reset_hard = "git reset --hard "+commit_name
+		os.system(git_reset_hard)
 	
-	def git_commit_f():
-		print(banner_commit)
-		print('Files added:')
-		os.system(git_add)
-		print('Current head:')
-		os.system(git_log_1)
-		print(banner_commit)
-		commit_name = input("New commit name (' ' to abort) » ").strip()
-		if commit_name =="":
-			return
-		inp = input("Really commit? » ").strip()
-		if inp == "yes":
-			git_commit = "git commit -m "+commit_name
-			os.system(git_commit)
-		
-	def git_revert_f():
-		print(banner_revert)
-		print('Commits:')
-		os.system(git_log)
-		print(banner_revert)
-		commit_name = input("Revert to commit name (' ' to abort) » ").strip()
-		if commit_name =="":
-			return
-		git_revert = "git revert "+commit_name
-		os.system(git_revert)
-		
-	def git_reset_hard_f():
-		print(banner_hreset)
-		print('Commits:')
-		os.system(git_log)
-		print(banner_hreset)
-		commit_name = input("Reset to commit name (' ' to abort) » ").strip()
-		if commit_name =="":
-			return
-		inp = input("Really? » ").strip()
-		if inp == "yes":
-			git_reset_hard = "git reset --hard "+commit_name
-			os.system(git_reset_hard)
-	
-	#Begin
+#Begin
+def git_menu():
 	print_git_ops()
 	while True:
 		print('')
@@ -225,332 +225,344 @@ def git_menu():
 		elif inp == "q":
 			break
 			
-#▒▒▒▒▒▒▒▒▒▒▒▒ ZETTEL MENU ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def main_menu():
+
+
+
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ FILE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def gen_template():
+	f = open(path + "/" + zettel_template_name, "w")
+	f.write(zettel_template)
+	f.close()
 	
-	
-	
-	def gen_template():
-		f = open(path + "/" + zettel_template_name, "w")
-		f.write(zettel_template)
-		f.close()
-		
-	def make_new():
-		inp = input("enter zettel name » ").strip()
-		f = open(path + "/" + inp + '.md', "w")
-		f.write(zettel_template)
-		f.close()
-		return inp
-		
-	def find_md_links(md):
-		INLINE_LINK_RE = re.compile(r'\(([^)]+)\)')
-		links = list(INLINE_LINK_RE.findall(md))
-		return links
-	
-	def find_comma_separated(md):
-		COMMA_SEP_CONT = re.compile(r'(.+?)(?:,\s*|$)')
-		text = list(COMMA_SEP_CONT.findall(md))
-		return text
-		
-	def parse_zettel_metadata(z_path):
-		#expected parsed data
-		data = {
-			'title' : '',
-			'tags' : [],
-			'links' : [],
-		}
-		
-		# open the file and read through it line by line
-		f = open(z_path, 'r')
-		
-		#a switch flag to read links in tge end of the file
-		reading_title = False
-		reading_links = False
-		reading_tags = False
-		
-		#parse keywords
-		for line in f:
-			
-			if marker_body in line:
-				reading_title = False
-				reading_tags = False
-				reading_links = False
-				continue
-		
-			if marker_title in line:
-				reading_title = True
-				reading_tags = False
-				reading_links = False
-				continue
-			
-			if marker_tags in line:
-				reading_title = False
-				reading_tags = True
-				reading_links = False
-				continue
-		
-			if marker_links in line:
-				reading_title = False
-				reading_tags = False
-				reading_links = True
-				continue
-			
-			if reading_title:
-				data['title'] += line.strip()
-				
-			if reading_tags:
-				data['tags'] += find_comma_separated(line)
-				
-			if reading_links:
-				data['links'] += find_md_links(line)
-					
-		#print('Title: ', data['title'])
-		#print('Tags: ', data['tags'])
-		#print('Links: ', data['links'])
-		return data
-		
-	def parse_zettel_body(z_path):
-		# open the file and read through it line by line
-		f = open(z_path, 'r')
-		
-		zettel_body = ''
-		reading = False
-		
-		#parse keywords
-		for line in f:
-			
-			if marker_body in line:
-				reading = True
-				continue
-		
-			if (marker_title in line) or (marker_tags in line) or (marker_links in line):
-				reading = False
-				continue
-			
-			if reading:
-				zettel_body += line
-					
-		#print('Title: ', data['title'])
-		#print('Tags: ', data['tags'])
-		#print('Links: ', data['links'])
-		return zettel_body
-			
-		
-	def update_db():
-		#remove existing db
-		try:
-			os.remove(db_path)
-			print('clearing previous database, updating...')
-		except:
-			print('no database to clear, creating...')
-		
-		#create new db
-		conn = None
-		try:
-			conn = sqlite3.connect(db_path)
-		except Error as e:
-			print(e)
-		finally:
-			if conn:
-				try:
-					c = conn.cursor()
-					
-					#create tables
-					c.execute(create_main_table)
-					c.execute(create_links_table)
-					c.execute(create_invalid_links_table)
-					c.execute(create_tags_table)
-					
-					#populate tables
-					time_start = time.time()
-					links = []
-					
-					#main table
-					for root, dirs, files in os.walk(path):
-						for name in files:
-							if name == zettel_template_name:
-								continue
-								
-							full_path = os.path.join(root, name)
-							z_path = name
-							z_title = parse_zettel_metadata(full_path)['title']
-							c.execute(insert_main, (z_title, z_path,))
-							
-					conn.commit()
-					
-					#links table, with check
-					for root, dirs, files in os.walk(path):
-						for name in files:
-							if name == zettel_template_name:
-								continue
-							
-							#get the links to which zettel refers to
-							full_path = os.path.join(root, name)
-							links = parse_zettel_metadata(full_path)['links']
-							
-							#get the current zettel id
-							c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
-							current_zettel_id = c.fetchall()[0][0]
-							
-							#see if links point out to existing nodes
-							for z_path_to in links:
-								c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (z_path_to,))
-								found_zettel = c.fetchall()
-								
-								if found_zettel:
-									valid_zettel_id = found_zettel[0][0]
-									#print('Link from: ', current_zettel_id)
-									#print('Link to: ', linked_zettel_id)
-									c.execute(insert_links, (current_zettel_id, valid_zettel_id,))
-								
-								else:
-									#print('invalid link: ', z_path_to)
-									c.execute(insert_invalid_links, (current_zettel_id, z_path_to,))
-					
-					conn.commit()
-					
-					#tags table
-					for root, dirs, files in os.walk(path):
-						for name in files:
-							if name == zettel_template_name:
-								continue
-							
-							#get the links to which zettel refers to
-							full_path = os.path.join(root, name)
-							tags = parse_zettel_metadata(full_path)['tags']
-							
-							#get the current zettel id
-							c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
-							current_zettel_id = c.fetchall()[0][0]
-							
-							#write the tags to table
-							for tag in tags:
-								c.execute(insert_tags, (current_zettel_id, tag,))
-							
-					conn.commit()
-					
-					time_end = time.time()
-					print('database rebuilt in: ', time_end - time_start)
-				
-				except Error as e:
-					print(e)
-				conn.close()
-	
-	def get_entry_num(pattern):
-		num = 0
+def make_new():
+	inp = input("enter zettel name » ").strip()
+	f = open(path + "/" + inp + '.md', "w")
+	f.write(zettel_template)
+	f.close()
+	return inp
+
+def increm_input_path():
+	file_name = ''
+	while True:
+		inp = input(file_name + " < ").strip()
+		file_name += inp
 		for root, dirs, files in os.walk(path):
+			
+			found = []
+			matches = 0
+			
 			for name in files:
-				if name == zettel_template_name:
-					continue
-				if fnmatch.fnmatch(name, pattern):
-					num += 1
-		return num
-		
-	def print_zettel_ops():
-		print('')
-		print(banner_zettel_ops)
-		print('() - read current zettel')
-		print(banner_zettel_ops)
-		print('')
-		print('(q) - quit')
-		
-	def zettel_ops(inp, file_path):
-		inp = input("ZETTEL OPS ('?' for commands) » ").strip()
-		
-		if inp == "":
-			os.system('clear')
-			print(parse_zettel_body(file_path))
-		elif inp == "?":
-			print_zettel_ops()
-		elif inp == 'q':
-			return True
-			
-	
-	def increm_input_path():
-		file_name = ''
-		
-		while True:
-			inp = input(file_name + " < ").strip()
-			file_name += inp
-			for root, dirs, files in os.walk(path):
-				keep_matching = False
-				for name in files:
-					name_no_ext = name.split('.')[0]
-					
-					#check for direct match
-					if file_name == name_no_ext:
-						
-						print('found exact zettel:', name_no_ext)
-						print('what shall we do next?')
-						file_path = os.path.join(root, name)
-						stop = False
-						print_zettel_ops()
-						while not stop:
-							stop = zettel_ops(inp, file_path)
-						else:
-							return
-						
-					
-					#else show multiple matches
-					if file_name in name_no_ext:
-						keep_matching = True
-						print('found:', name_no_ext)
-						
-				#break if neither name matches
-				if not keep_matching:
-					print('no zettel found')
-					return
+				name_no_ext = name.split('.')[0]
 				
-					
-			#print(file_path)
+				#show multiple matches
+				if file_name in name_no_ext:
+					matches += 1
+					keep_matching = True
+					print('found:', name_no_ext)
+					found.append(name)
+				
+			print('  ╰ search hits:', matches)
 			
+			#if only one option remains
+			if len(found) == 1:
+				print()
+				print('found single matching zettel:', found[0])
+				print('what shall we do next?')
+				file_path = os.path.join(root, found[0])
+				stop = False
+				print_zettel_ops()
+				while not stop:
+					stop = zettel_ops(inp, file_path)
+				else:
+					return
+					
+			#break if neither name matches
+			if not keep_matching:
+				print('no zettel found')
+				return
+
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ PARSING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def find_md_links(md):
+	INLINE_LINK_RE = re.compile(r'\(([^)]+)\)')
+	links = list(INLINE_LINK_RE.findall(md))
+	return links
+
+def find_comma_separated(md):
+	COMMA_SEP_CONT = re.compile(r'(.+?)(?:,\s*|$)')
+	text = list(COMMA_SEP_CONT.findall(md))
+	return text
 	
-	#Higher-level functions
-	def statistics():
-		entries_num = get_entry_num('*.md')
-		print(divider)
-		print('current number of your precious zettels is:', entries_num)
-		print(divider)
-		
-	def tree():
-		os.system('tree'+' '+path)
-		print(divider)
-		print('tree rendred')
-		print(divider)
-		
-	def make_template():
-		gen_template()
-		print(divider)
-		print('generated a non-indexed template zettel:', zettel_template_name)
-		print(divider)
+def parse_zettel_metadata(z_path):
+	#expected parsed data
+	data = {
+		'title' : '',
+		'tags' : [],
+		'links' : [],
+	}
 	
-	def find_file():
-		print(divider)
-		print('start entering file name (character, parts of words, or whole name) and get incremental results')
-		print(divider)
-		increm_input_path()
-		
-	def make_new_zettel():
-		zettel_name = make_new()
-		print(divider)
-		print('generated a new empty zettel from template:', zettel_name)
-		print(divider)
-		
-	def print_main_ops():
-		print('')
-		print(banner_main)
-		print('() - update the index and show brief statistics')
-		print('(n) - make new empty zettel')
-		print('(ff) - incrementally enter filename to find zettel')
-		print('(tree) - use "tree" command to show files')
-		print('(temp) - write a template zettel into the kasten')
-		print(banner_main)
-		print('')
-		print('(t) - git menu')
-		print('(q) - quit')
-		
+	# open the file and read through it line by line
+	f = open(z_path, 'r')
 	
-	#while True:
+	#a switch flag to read links in tge end of the file
+	reading_title = False
+	reading_links = False
+	reading_tags = False
+	
+	#parse keywords
+	for line in f:
+		
+		if marker_body in line:
+			reading_title = False
+			reading_tags = False
+			reading_links = False
+			continue
+	
+		if marker_title in line:
+			reading_title = True
+			reading_tags = False
+			reading_links = False
+			continue
+		
+		if marker_tags in line:
+			reading_title = False
+			reading_tags = True
+			reading_links = False
+			continue
+	
+		if marker_links in line:
+			reading_title = False
+			reading_tags = False
+			reading_links = True
+			continue
+		
+		if reading_title:
+			data['title'] += line.strip()
+			
+		if reading_tags:
+			data['tags'] += find_comma_separated(line)
+			
+		if reading_links:
+			data['links'] += find_md_links(line)
+	
+	return data
+	
+def parse_zettel_body(z_path):
+	# open the file and read through it line by line
+	f = open(z_path, 'r')
+	
+	zettel_body = ''
+	reading = False
+	
+	#parse keywords
+	for line in f:
+		
+		if marker_body in line:
+			reading = True
+			continue
+	
+		if (marker_title in line) or (marker_tags in line) or (marker_links in line):
+			reading = False
+			continue
+		
+		if reading:
+			zettel_body += line
+	
+	return zettel_body
+	
+	
+	
+#▒▒▒▒▒▒▒▒▒▒▒▒ DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def update_db():
+	#remove existing db
+	try:
+		os.remove(db_path)
+		print('clearing previous database, updating...')
+	except:
+		print('no database to clear, creating...')
+	
+	#create new db
+	conn = None
+	try:
+		conn = sqlite3.connect(db_path)
+	except Error as e:
+		print(e)
+	finally:
+		if conn:
+			try:
+				c = conn.cursor()
+				
+				#create tables
+				c.execute(create_main_table)
+				c.execute(create_links_table)
+				c.execute(create_invalid_links_table)
+				c.execute(create_tags_table)
+				
+				#populate tables
+				time_start = time.time()
+				links = []
+				
+				#main table
+				for root, dirs, files in os.walk(path):
+					for name in files:
+						if name == zettel_template_name:
+							continue
+							
+						full_path = os.path.join(root, name)
+						z_path = name
+						z_title = parse_zettel_metadata(full_path)['title']
+						c.execute(insert_main, (z_title, z_path,))
+						
+				conn.commit()
+				
+				#links table, with check
+				for root, dirs, files in os.walk(path):
+					for name in files:
+						if name == zettel_template_name:
+							continue
+						
+						#get the links to which zettel refers to
+						full_path = os.path.join(root, name)
+						links = parse_zettel_metadata(full_path)['links']
+						
+						#get the current zettel id
+						c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
+						current_zettel_id = c.fetchall()[0][0]
+						
+						#see if links point out to existing nodes
+						for z_path_to in links:
+							c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (z_path_to,))
+							found_zettel = c.fetchall()
+							
+							if found_zettel:
+								valid_zettel_id = found_zettel[0][0]
+								c.execute(insert_links, (current_zettel_id, valid_zettel_id,))
+							
+							else:
+								c.execute(insert_invalid_links, (current_zettel_id, z_path_to,))
+				
+				conn.commit()
+				
+				#tags table
+				for root, dirs, files in os.walk(path):
+					for name in files:
+						if name == zettel_template_name:
+							continue
+						
+						#get the links to which zettel refers to
+						full_path = os.path.join(root, name)
+						tags = parse_zettel_metadata(full_path)['tags']
+						
+						#get the current zettel id
+						c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
+						current_zettel_id = c.fetchall()[0][0]
+						
+						#write the tags to table
+						for tag in tags:
+							c.execute(insert_tags, (current_zettel_id, tag,))
+						
+				conn.commit()
+				
+				time_end = time.time()
+				print('database rebuilt in: ', time_end - time_start)
+			
+			except Error as e:
+				print(e)
+			conn.close()
+
+
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ ANALYSIS OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def get_entry_num(pattern):
+	num = 0
+	for root, dirs, files in os.walk(path):
+		for name in files:
+			if name == zettel_template_name:
+				continue
+			if fnmatch.fnmatch(name, pattern):
+				num += 1
+	return num
+	
+def get_warn_num():
+	num = 0
+	return num
+	
+def print_zettel_ops():
+	print('')
+	print(banner_zettel_ops)
+	print('() - read current zettel')
+	print(banner_zettel_ops)
+	print('')
+	print('(q) - quit')
+	
+def zettel_ops(inp, file_path):
+	inp = input("ZETTEL OPS ('?' for commands) » ").strip()
+	
+	if inp == "":
+		os.system('clear')
+		print(divider)
+		print(parse_zettel_body(file_path))
+		print(divider)
+	elif inp == "?":
+		print_zettel_ops()
+	elif inp == 'q':
+		return True
+		
+
+
+			
+				
+		
+		
+#▒▒▒▒▒▒▒▒▒▒▒▒ FUNCTION WRAPPERS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def sync():
+	print(divider)
+	update_db()
+	entries_num = get_entry_num('*.md')
+	warnings_num = get_warn_num()
+	print('current number of your precious zettels is:', entries_num)
+	print(divider)
+	
+def tree():
+	os.system('tree'+' '+path)
+	print(divider)
+	print('tree rendred')
+	print(divider)
+	
+def make_template():
+	gen_template()
+	print(divider)
+	print('generated a non-indexed template zettel:', zettel_template_name)
+	print(divider)
+
+def find_file():
+	print(divider)
+	print('start entering file name (character, parts of words, or whole name) and get incremental results')
+	print(divider)
+	increm_input_path()
+	
+def make_new_zettel():
+	zettel_name = make_new()
+	print(divider)
+	print('generated a new empty zettel from template:', zettel_name)
+	print(divider)
+	
+def print_main_ops():
+	print('')
+	print(banner_main)
+	print('() - update the index and show brief statistics')
+	print('(n) - make new empty zettel')
+	print('(ff) - incrementally enter filename to find zettel')
+	print('(tree) - use "tree" command to show files')
+	print('(temp) - write a template zettel into the kasten')
+	print(banner_main)
+	print('')
+	print('(t) - git menu')
+	print('(q) - quit')
+		
+#▒▒▒▒▒▒▒▒▒▒▒▒ MAIN MENU ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def main_menu():
 	print_main_ops()
 	
 	while True:
@@ -560,8 +572,7 @@ def main_menu():
 				
 		if inp == "":
 			os.system('clear')
-			update_db()
-			statistics()
+			sync()
 		if inp == "n":
 			os.system('clear')
 			make_new_zettel()
@@ -582,7 +593,7 @@ def main_menu():
 		elif inp == "q":
 				quit()
 
-#Start
+#Start 
 os.system('clear')
 while True:
 	main_menu()
