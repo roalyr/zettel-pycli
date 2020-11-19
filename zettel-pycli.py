@@ -52,7 +52,8 @@ create_main_table = '''
 	CREATE TABLE IF NOT EXISTS main (
 		id integer PRIMARY KEY,
 		z_title text NOT NULL,
-		z_path text NOT NULL
+		z_path text NOT NULL,
+		z_body text NOT NULL
 	); '''
 
 create_links_table = '''
@@ -97,10 +98,11 @@ create_tags_table = '''
 insert_main = '''
 	INSERT INTO main (
 		z_title,
-		z_path
+		z_path,
+		z_body
 	)
 	VALUES(
-		?, ?
+		?, ?, ?
 	) '''
 
 insert_links = '''
@@ -267,9 +269,7 @@ def git_menu():
 		elif inp == "q":
 			break
 			
-
-
-
+			
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ FILE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def gen_template():
@@ -360,30 +360,6 @@ def parse_zettel_metadata(z_path):
 	
 	return data
 	
-def parse_zettel_body(z_path):
-	# open the file and read through it line by line
-	f = open(z_path, 'r')
-	
-	zettel_body = ''
-	reading = False
-	
-	#parse keywords
-	for line in f:
-		
-		if marker_body in line:
-			reading = True
-			continue
-	
-		if (marker_title in line) or (marker_tags in line) or (marker_links in line):
-			reading = False
-			continue
-		
-		if reading:
-			zettel_body += line
-	
-	return zettel_body
-	
-	
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def query_db(exec_line):
@@ -446,7 +422,7 @@ def update_db():
 						parsed = parse_zettel_metadata(full_path)
 						z_title = parsed['title']
 						z_body = parsed['body']
-						c.execute(insert_main, (z_title, z_path,))
+						c.execute(insert_main, (z_title, z_path, z_body))
 						
 						#get the current zettel id
 						c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
@@ -456,7 +432,6 @@ def update_db():
 						if z_title == '':
 							c.execute(insert_titleless, (current_zettel_id,))
 							
-						
 				conn.commit()
 				
 				#links table, with check
@@ -539,11 +514,11 @@ def increm_input_title_name():
 				print('what shall we do next?')
 				get_exact = "SELECT * FROM main WHERE id = " + str(entries[val][0])
 				row = query_db(get_exact)
-				file_path = os.path.join(path, row[0][2])
+				z_id = row[0][0]
 				stop = False
 				print_zettel_ops()
 				while not stop:
-					stop = zettel_ops(inp, file_path)
+					stop = zettel_ops(inp, z_id)
 				else:
 					return
 		except:
@@ -594,11 +569,11 @@ def increm_input_title_name():
 			print('what shall we do next?')
 			get_exact = "SELECT * FROM main WHERE id = " + str(entries[0][0])
 			row = query_db(get_exact)
-			file_path = os.path.join(path, row[0][2])
+			z_id = row[0][0]
 			stop = False
 			print_zettel_ops()
 			while not stop:
-				stop = zettel_ops(inp, file_path)
+				stop = zettel_ops(inp, z_id)
 			else:
 				return
 		
@@ -606,7 +581,6 @@ def increm_input_title_name():
 		elif len(entries) == 0: 
 			print('no zettel found')
 			return
-		
 		
 def list_corrupt_links():
 	get_all = "SELECT * FROM invalid_links"
@@ -676,20 +650,26 @@ def list_no_titles():
 		num += 1
 	return True
 	
-
 def get_links_num():
 	get_all = "SELECT * FROM links"
 	entries = query_db(get_all)
 	num = len(entries)
 	return num
 	
-
 def get_entry_num():
 	get_all = "SELECT * FROM main"
 	entries = query_db(get_all)
 	num = len(entries)
 	return num
+
+def get_zettel_body(z_id):
+	get_body = "SELECT * FROM main WHERE id =" + str(z_id)
+	body = query_db(get_body)
+	print(body[0][3])
 	
+	
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ ZETTEL OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def print_zettel_ops():
 	print('')
 	print(banner_zettel_ops)
@@ -698,17 +678,18 @@ def print_zettel_ops():
 	print('')
 	print('(q) - quit')
 	
-def zettel_ops(inp, file_path):
+def zettel_ops(inp, z_id):
 	inp = input("ZETTEL OPS ('?' for commands) » ").strip()
 	if inp == "":
 		os.system('clear')
 		print(divider)
-		print(parse_zettel_body(file_path))
+		print_zettel_body(z_id)
 		print(divider)
 	elif inp == "?":
 		print_zettel_ops()
 	elif inp == 'q':
 		return True
+		
 		
 			
 #▒▒▒▒▒▒▒▒▒▒▒▒ FUNCTION WRAPPERS ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -792,22 +773,25 @@ def make_new_zettel():
 	print("don't forget to update the database")
 	print(divider)
 	
+		
+		
+#▒▒▒▒▒▒▒▒▒▒▒▒ MAIN MENU ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def print_main_ops():
 	print('')
 	print(banner_main)
 	print('() - show statistics')
-	print('(u) - update the index')
-	print('(n) - make new empty zettel')
-	print('(f) - incrementally find zettel')
+	print('(u) - update the database')
+	print('(f) - incrementally find zettel to enter the graph')
 	print('(r) - review zettels for errors in links')
 	print('(tree) - use "tree" command to show files')
+	print()
+	print('(n) - make new empty zettel')
 	print('(temp) - generate a template zettel')
 	print(banner_main)
 	print('')
 	print('(t) - git menu')
 	print('(q) - quit')
 		
-#▒▒▒▒▒▒▒▒▒▒▒▒ MAIN MENU ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def main_menu():
 	print_main_ops()
 	
