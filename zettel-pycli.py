@@ -452,54 +452,12 @@ def update_db():
 
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYSIS OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def increm_input_path():
-	file_name = ''
-	while True:
-		inp = input(file_name + " < ").strip()
-		file_name += inp
-		for root, dirs, files in os.walk(path):
-			
-			found = []
-			matches = 0
-			
-			for name in files:
-				name_no_ext = name.split('.')[0]
-				
-				#show multiple matches
-				if file_name in name_no_ext:
-					matches += 1
-					keep_matching = True
-					print('found:', name_no_ext)
-					found.append(name)
-				
-			print('  ╰ search hits:', matches)
-			
-			#if only one option remains
-			if len(found) == 1:
-				print()
-				print('found single matching zettel:', found[0])
-				print('what shall we do next?')
-				file_path = os.path.join(root, found[0])
-				stop = False
-				print_zettel_ops()
-				while not stop:
-					stop = zettel_ops(inp, file_path)
-				else:
-					return
-					
-			#break if neither name matches
-			if not keep_matching:
-				print('no zettel found')
-				return
-
-
-
 def increm_input_title_name():
 	name = ''
 	
 	while True:
 		inp = input(name + " < ")
-		
+		os.system('clear')
 		#pick up by number in list
 		try:
 			if inp[0] == ":": 
@@ -582,8 +540,6 @@ def increm_input_title_name():
 		elif len(entries) == 0: 
 			print('no zettel found')
 			return
-
-		
 		
 
 
@@ -649,7 +605,8 @@ def make_template():
 def find_zettel():
 	print(divider)
 	print('start entering zettel title or filename parts') 
-	print('(character, parts of words, or whole name) and get incremental results')
+	print('(character, parts of words, or whole name)')
+	print('and get incremental results. Enter - to refresh')
 	print(divider)
 	increm_input_title_name()
 	
@@ -662,11 +619,11 @@ def make_new_zettel():
 def print_main_ops():
 	print('')
 	print(banner_main)
-	print('() - update the index and show brief statistics')
+	print('(u) - update the index and show brief statistics')
 	print('(n) - make new empty zettel')
 	print('(f) - incrementally find zettel')
 	print('(tree) - use "tree" command to show files')
-	print('(temp) - write a template zettel into the kasten')
+	print('(temp) - generate a template zettel')
 	print(banner_main)
 	print('')
 	print('(t) - git menu')
@@ -681,7 +638,7 @@ def main_menu():
 		inp = input("MAIN MENU ('?' for commands) » ").strip()
 		print('')
 				
-		if inp == "":
+		if inp == "u":
 			os.system('clear')
 			sync()
 		if inp == "n":
