@@ -11,7 +11,7 @@ another tag
 template, test
 test, tags, links
 title
-zettel, stuff
+zettel, stuff 
 
 [ZETTEL LINKS] 
 [temp2](temp2.md) 

@@ -242,45 +242,6 @@ def make_new():
 	f.close()
 	return inp
 
-def increm_input_path():
-	file_name = ''
-	while True:
-		inp = input(file_name + " < ").strip()
-		file_name += inp
-		for root, dirs, files in os.walk(path):
-			
-			found = []
-			matches = 0
-			
-			for name in files:
-				name_no_ext = name.split('.')[0]
-				
-				#show multiple matches
-				if file_name in name_no_ext:
-					matches += 1
-					keep_matching = True
-					print('found:', name_no_ext)
-					found.append(name)
-				
-			print('  ╰ search hits:', matches)
-			
-			#if only one option remains
-			if len(found) == 1:
-				print()
-				print('found single matching zettel:', found[0])
-				print('what shall we do next?')
-				file_path = os.path.join(root, found[0])
-				stop = False
-				print_zettel_ops()
-				while not stop:
-					stop = zettel_ops(inp, file_path)
-				else:
-					return
-					
-			#break if neither name matches
-			if not keep_matching:
-				print('no zettel found')
-				return
 
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ PARSING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -374,6 +335,24 @@ def parse_zettel_body(z_path):
 	
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def query_db(exec_line):
+	found = []
+	conn = None
+	try:
+		conn = sqlite3.connect(db_path)
+	except Error as e:
+		print(e)
+	finally:
+		if conn:
+			try:
+				c = conn.cursor()
+				c.execute(exec_line)
+				found = c.fetchall()
+			except Error as e:
+				print(e)
+			conn.close()
+			return found
+
 def update_db():
 	#remove existing db
 	try:
@@ -382,7 +361,6 @@ def update_db():
 	except:
 		print('no database to clear, creating...')
 	
-	#create new db
 	conn = None
 	try:
 		conn = sqlite3.connect(db_path)
@@ -474,6 +452,141 @@ def update_db():
 
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYSIS OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def increm_input_path():
+	file_name = ''
+	while True:
+		inp = input(file_name + " < ").strip()
+		file_name += inp
+		for root, dirs, files in os.walk(path):
+			
+			found = []
+			matches = 0
+			
+			for name in files:
+				name_no_ext = name.split('.')[0]
+				
+				#show multiple matches
+				if file_name in name_no_ext:
+					matches += 1
+					keep_matching = True
+					print('found:', name_no_ext)
+					found.append(name)
+				
+			print('  ╰ search hits:', matches)
+			
+			#if only one option remains
+			if len(found) == 1:
+				print()
+				print('found single matching zettel:', found[0])
+				print('what shall we do next?')
+				file_path = os.path.join(root, found[0])
+				stop = False
+				print_zettel_ops()
+				while not stop:
+					stop = zettel_ops(inp, file_path)
+				else:
+					return
+					
+			#break if neither name matches
+			if not keep_matching:
+				print('no zettel found')
+				return
+
+
+
+def increm_input_title_name():
+	name = ''
+	
+	while True:
+		inp = input(name + " < ")
+		
+		#pick up by number in list
+		try:
+			if inp[0] == ":": 
+				val = int(inp[1:])
+				if entry[1] != '':
+					title = entry[1]
+					print()
+					print('selected:', str(val)+'.', entry[2])
+					print(' ╰ ' + title)
+				else:
+					print()
+					print('selected:', str(val)+'.', entry[2])
+				print('what shall we do next?')
+				get_exact = "SELECT * FROM main WHERE id = " + str(entries[val][0])
+				row = query_db(get_exact)
+				file_path = os.path.join(path, row[0][2])
+				stop = False
+				print_zettel_ops()
+				while not stop:
+					stop = zettel_ops(inp, file_path)
+				else:
+					return
+		except:
+			pass
+		
+		name += inp
+		num = 0
+		
+		#or keep iterating tye query
+		#show all if no input
+		if name == '':
+			get_all = "SELECT * FROM main"
+			entries = query_db(get_all)
+		#or find by name or title
+		else:
+			get_by_name = "SELECT * FROM main WHERE z_path LIKE '%"+name+"%' OR z_title LIKE '%"+name+"%'"
+			entries = query_db(get_by_name)
+		
+		if len(entries) > 1:
+			for entry in entries:
+				if entry[1] != '':
+					title = entry[1]
+					print()
+					print(str(num)+'.', entry[2])
+					print(' ╰ ' + title)
+				else:
+					print()
+					print(str(num)+'.', entry[2])
+				num += 1
+				
+			print(divider)
+			print('total search hits:', len(entries))
+			print('keep narrowing your search by entering more characters')
+			print('or enter :number to pick an entity from the query list')
+			print(divider)
+			
+		elif len(entries) == 1: 
+			entry = entries[0]
+			print()
+			if entry[1] != '':
+				title = entry[1]
+				print()
+				print('found:', entry[2])
+				print(' ╰ ' + title)
+			else:
+				print()
+				print('found:', entry[2])
+			print('what shall we do next?')
+			get_exact = "SELECT * FROM main WHERE id = " + str(entries[0][0])
+			row = query_db(get_exact)
+			file_path = os.path.join(path, row[0][2])
+			stop = False
+			print_zettel_ops()
+			while not stop:
+				stop = zettel_ops(inp, file_path)
+			else:
+				return
+		
+		#break if neither name matches
+		elif len(entries) == 0: 
+			print('no zettel found')
+			return
+
+		
+		
+
+
 def get_entry_num(pattern):
 	num = 0
 	for root, dirs, files in os.walk(path):
@@ -512,9 +625,6 @@ def zettel_ops(inp, file_path):
 
 
 			
-				
-		
-		
 #▒▒▒▒▒▒▒▒▒▒▒▒ FUNCTION WRAPPERS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def sync():
 	print(divider)
@@ -536,11 +646,12 @@ def make_template():
 	print('generated a non-indexed template zettel:', zettel_template_name)
 	print(divider)
 
-def find_file():
+def find_zettel():
 	print(divider)
-	print('start entering file name (character, parts of words, or whole name) and get incremental results')
+	print('start entering zettel title or filename parts') 
+	print('(character, parts of words, or whole name) and get incremental results')
 	print(divider)
-	increm_input_path()
+	increm_input_title_name()
 	
 def make_new_zettel():
 	zettel_name = make_new()
@@ -553,7 +664,7 @@ def print_main_ops():
 	print(banner_main)
 	print('() - update the index and show brief statistics')
 	print('(n) - make new empty zettel')
-	print('(ff) - incrementally enter filename to find zettel')
+	print('(f) - incrementally find zettel')
 	print('(tree) - use "tree" command to show files')
 	print('(temp) - write a template zettel into the kasten')
 	print(banner_main)
@@ -576,9 +687,9 @@ def main_menu():
 		if inp == "n":
 			os.system('clear')
 			make_new_zettel()
-		if inp == "ff":
+		if inp == "f":
 			os.system('clear')
-			find_file()
+			find_zettel()
 		if inp == "tree":
 			os.system('clear')
 			tree()
