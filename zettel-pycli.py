@@ -69,6 +69,12 @@ create_invalid_links_table = '''
 		z_path_to text NOT NULL
 	); '''
 
+create_no_links_table = '''
+	CREATE TABLE IF NOT EXISTS no_links (
+		id integer PRIMARY KEY,
+		z_id_from integer NOT NULL
+	); '''
+
 create_tags_table = '''
 	CREATE TABLE IF NOT EXISTS tags (
 		id integer PRIMARY KEY,
@@ -101,6 +107,14 @@ insert_invalid_links = '''
 	)
 	VALUES(
 		?, ?
+	) '''
+	
+insert_no_links = '''
+	INSERT INTO no_links (
+		z_id_from
+	)
+	VALUES(
+		?
 	) '''
 	
 insert_tags = '''
@@ -375,6 +389,7 @@ def update_db():
 				c.execute(create_main_table)
 				c.execute(create_links_table)
 				c.execute(create_invalid_links_table)
+				c.execute(create_no_links_table)
 				c.execute(create_tags_table)
 				
 				#populate tables
@@ -403,11 +418,13 @@ def update_db():
 						#get the links to which zettel refers to
 						full_path = os.path.join(root, name)
 						links = parse_zettel_metadata(full_path)['links']
-						
+							
 						#get the current zettel id
 						c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
 						current_zettel_id = c.fetchall()[0][0]
-						
+						if links == []:
+							c.execute(insert_no_links, (current_zettel_id,))
+							
 						#see if links point out to existing nodes
 						for z_path_to in links:
 							c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (z_path_to,))
@@ -454,7 +471,6 @@ def update_db():
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYSIS OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def increm_input_title_name():
 	name = ''
-	
 	while True:
 		inp = input(name + " < ")
 		os.system('clear')
@@ -541,7 +557,49 @@ def increm_input_title_name():
 			print('no zettel found')
 			return
 		
+		
+def list_corrupt_links():
+	get_all = "SELECT * FROM invalid_links"
+	entries = query_db(get_all)
+	if entries == []:
+		return False
+		
+	same_file = False
+	name_previous = ''
+	num = 0
+	for entry in entries:
+		get_file_name = "SELECT * FROM main WHERE id =" + str(entry[1])
+		name = query_db(get_file_name)[0][2]
 
+		if name == name_previous:
+			same_file = True
+			
+		if same_file:
+			print('   └─', entry[2])
+			same_file = False
+		else:
+			print()
+			print(str(num)+'.', 'file:', name)
+			print('   corrupt links:')
+			print('   └─', entry[2])
+			num += 1
+		
+		name_previous = name
+	return True
+		
+def list_no_links():
+	get_all = "SELECT * FROM no_links"
+	entries = query_db(get_all)
+	if entries == []:
+		return False
+	num = 0
+	for entry in entries:
+		get_file_name = "SELECT * FROM main WHERE id =" + str(entry[1])
+		name = query_db(get_file_name)[0][2]
+		print(str(num)+'.', 'file:', name)
+		num += 1
+	return True
+	
 
 def get_entry_num(pattern):
 	num = 0
@@ -551,10 +609,6 @@ def get_entry_num(pattern):
 				continue
 			if fnmatch.fnmatch(name, pattern):
 				num += 1
-	return num
-	
-def get_warn_num():
-	num = 0
 	return num
 	
 def print_zettel_ops():
@@ -567,7 +621,6 @@ def print_zettel_ops():
 	
 def zettel_ops(inp, file_path):
 	inp = input("ZETTEL OPS ('?' for commands) » ").strip()
-	
 	if inp == "":
 		os.system('clear')
 		print(divider)
@@ -578,16 +631,19 @@ def zettel_ops(inp, file_path):
 	elif inp == 'q':
 		return True
 		
-
-
 			
 #▒▒▒▒▒▒▒▒▒▒▒▒ FUNCTION WRAPPERS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def sync():
 	print(divider)
 	update_db()
+	print(divider)
+	
+def info():
+	print(divider)
 	entries_num = get_entry_num('*.md')
-	warnings_num = get_warn_num()
+	corrupt_links = get_corrupt_num()[0]
 	print('current number of your precious zettels is:', entries_num)
+	print('there are corrupt links, review them:', corrupt_links)
 	print(divider)
 	
 def tree():
@@ -610,6 +666,25 @@ def find_zettel():
 	print(divider)
 	increm_input_title_name()
 	
+def review():
+	errors = False
+	print(divider)
+	if list_no_links():
+		print(divider)
+		print('there unlinked zettels listed above, link them them')
+		print(divider)
+		errors = True
+	
+	if list_corrupt_links():
+		print(divider)
+		print('there are corrupt links in your zettels, review them')
+		print(divider)
+		errors = True
+		
+	if not errors:
+		print('all good, no corrupt links or unlinked zettels')
+		print(divider)
+	
 def make_new_zettel():
 	zettel_name = make_new()
 	print(divider)
@@ -619,9 +694,11 @@ def make_new_zettel():
 def print_main_ops():
 	print('')
 	print(banner_main)
-	print('(u) - update the index and show brief statistics')
+	print('() - show statistics')
+	print('(u) - update the index')
 	print('(n) - make new empty zettel')
 	print('(f) - incrementally find zettel')
+	print('(r) - review zettels for errors in links')
 	print('(tree) - use "tree" command to show files')
 	print('(temp) - generate a template zettel')
 	print(banner_main)
@@ -638,6 +715,9 @@ def main_menu():
 		inp = input("MAIN MENU ('?' for commands) » ").strip()
 		print('')
 				
+		if inp == "":
+			os.system('clear')
+			info()
 		if inp == "u":
 			os.system('clear')
 			sync()
@@ -647,6 +727,9 @@ def main_menu():
 		if inp == "f":
 			os.system('clear')
 			find_zettel()
+		if inp == "r":
+			os.system('clear')
+			review()
 		if inp == "tree":
 			os.system('clear')
 			tree()

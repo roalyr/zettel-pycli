@@ -16,4 +16,4 @@ Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculu
 
 
 [ZETTEL LINKS]
-
+[dgdgdt](some.md)
