@@ -74,6 +74,12 @@ create_no_links_table = '''
 		id integer PRIMARY KEY,
 		z_id_from integer NOT NULL
 	); '''
+	
+create_empties_table = '''
+	CREATE TABLE IF NOT EXISTS empties (
+		id integer PRIMARY KEY,
+		z_id_from integer NOT NULL
+	); '''
 
 create_tags_table = '''
 	CREATE TABLE IF NOT EXISTS tags (
@@ -111,6 +117,14 @@ insert_invalid_links = '''
 	
 insert_no_links = '''
 	INSERT INTO no_links (
+		z_id_from
+	)
+	VALUES(
+		?
+	) '''
+	
+insert_empties = '''
+	INSERT INTO empties (
 		z_id_from
 	)
 	VALUES(
@@ -273,6 +287,7 @@ def parse_zettel_metadata(z_path):
 	#expected parsed data
 	data = {
 		'title' : '',
+		'body' : '',
 		'tags' : [],
 		'links' : [],
 	}
@@ -282,6 +297,7 @@ def parse_zettel_metadata(z_path):
 	
 	#a switch flag to read links in tge end of the file
 	reading_title = False
+	reading_body = False
 	reading_links = False
 	reading_tags = False
 	
@@ -290,30 +306,37 @@ def parse_zettel_metadata(z_path):
 		
 		if marker_body in line:
 			reading_title = False
+			reading_body = True
 			reading_tags = False
 			reading_links = False
 			continue
 	
 		if marker_title in line:
 			reading_title = True
+			reading_body = False
 			reading_tags = False
 			reading_links = False
 			continue
 		
 		if marker_tags in line:
 			reading_title = False
+			reading_body = False
 			reading_tags = True
 			reading_links = False
 			continue
 	
 		if marker_links in line:
 			reading_title = False
+			reading_body = False
 			reading_tags = False
 			reading_links = True
 			continue
 		
 		if reading_title:
 			data['title'] += line.strip()
+			
+		if reading_body:
+			data['body'] += line.strip()
 			
 		if reading_tags:
 			data['tags'] += find_comma_separated(line)
@@ -391,6 +414,7 @@ def update_db():
 				c.execute(create_invalid_links_table)
 				c.execute(create_no_links_table)
 				c.execute(create_tags_table)
+				c.execute(create_empties_table)
 				
 				#populate tables
 				time_start = time.time()
@@ -404,8 +428,17 @@ def update_db():
 							
 						full_path = os.path.join(root, name)
 						z_path = name
-						z_title = parse_zettel_metadata(full_path)['title']
+						parsed = parse_zettel_metadata(full_path)
+						z_title = parsed['title']
+						z_body = parsed['body']
 						c.execute(insert_main, (z_title, z_path,))
+						
+						#get the current zettel id
+						c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
+						current_zettel_id = c.fetchall()[0][0]
+						if z_body == '':
+							c.execute(insert_empties, (current_zettel_id,))
+							
 						
 				conn.commit()
 				
@@ -600,15 +633,31 @@ def list_no_links():
 		num += 1
 	return True
 	
-
-def get_entry_num(pattern):
+def list_no_bodies():
+	get_all = "SELECT * FROM empties"
+	entries = query_db(get_all)
+	if entries == []:
+		return False
 	num = 0
-	for root, dirs, files in os.walk(path):
-		for name in files:
-			if name == zettel_template_name:
-				continue
-			if fnmatch.fnmatch(name, pattern):
-				num += 1
+	for entry in entries:
+		get_file_name = "SELECT * FROM main WHERE id =" + str(entry[1])
+		name = query_db(get_file_name)[0][2]
+		print(str(num)+'.', 'file:', name)
+		num += 1
+	return True
+	
+
+def get_links_num():
+	get_all = "SELECT * FROM links"
+	entries = query_db(get_all)
+	num = len(entries)
+	return num
+	
+
+def get_entry_num():
+	get_all = "SELECT * FROM main"
+	entries = query_db(get_all)
+	num = len(entries)
 	return num
 	
 def print_zettel_ops():
@@ -640,10 +689,10 @@ def sync():
 	
 def info():
 	print(divider)
-	entries_num = get_entry_num('*.md')
-	corrupt_links = get_corrupt_num()[0]
+	entries_num = get_entry_num()
+	links_num = get_links_num()
 	print('current number of your precious zettels is:', entries_num)
-	print('there are corrupt links, review them:', corrupt_links)
+	print('current number of links between zettels is:', links_num)
 	print(divider)
 	
 def tree():
@@ -669,9 +718,17 @@ def find_zettel():
 def review():
 	errors = False
 	print(divider)
+	# no zettels check
+	if list_no_bodies():
+		print(divider)
+		print('there are zettels without text listed above, fill them')
+		print(divider)
+		print()
+		errors = True
+		
 	if list_no_links():
 		print(divider)
-		print('there unlinked zettels listed above, link them them')
+		print('there are unlinked zettels listed above, link them')
 		print(divider)
 		errors = True
 	
@@ -689,6 +746,7 @@ def make_new_zettel():
 	zettel_name = make_new()
 	print(divider)
 	print('generated a new empty zettel from template:', zettel_name)
+	print("don't forget to update the database")
 	print(divider)
 	
 def print_main_ops():
