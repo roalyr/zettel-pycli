@@ -80,6 +80,12 @@ create_empties_table = '''
 		id integer PRIMARY KEY,
 		z_id_from integer NOT NULL
 	); '''
+	
+create_titleless_table = '''
+	CREATE TABLE IF NOT EXISTS titleless (
+		id integer PRIMARY KEY,
+		z_id_from integer NOT NULL
+	); '''
 
 create_tags_table = '''
 	CREATE TABLE IF NOT EXISTS tags (
@@ -125,6 +131,14 @@ insert_no_links = '''
 	
 insert_empties = '''
 	INSERT INTO empties (
+		z_id_from
+	)
+	VALUES(
+		?
+	) '''
+	
+insert_titleless = '''
+	INSERT INTO titleless (
 		z_id_from
 	)
 	VALUES(
@@ -415,6 +429,7 @@ def update_db():
 				c.execute(create_no_links_table)
 				c.execute(create_tags_table)
 				c.execute(create_empties_table)
+				c.execute(create_titleless_table)
 				
 				#populate tables
 				time_start = time.time()
@@ -438,6 +453,8 @@ def update_db():
 						current_zettel_id = c.fetchall()[0][0]
 						if z_body == '':
 							c.execute(insert_empties, (current_zettel_id,))
+						if z_title == '':
+							c.execute(insert_titleless, (current_zettel_id,))
 							
 						
 				conn.commit()
@@ -646,6 +663,19 @@ def list_no_bodies():
 		num += 1
 	return True
 	
+def list_no_titles():
+	get_all = "SELECT * FROM titleless"
+	entries = query_db(get_all)
+	if entries == []:
+		return False
+	num = 0
+	for entry in entries:
+		get_file_name = "SELECT * FROM main WHERE id =" + str(entry[1])
+		name = query_db(get_file_name)[0][2]
+		print(str(num)+'.', 'file:', name)
+		num += 1
+	return True
+	
 
 def get_links_num():
 	get_all = "SELECT * FROM links"
@@ -689,11 +719,15 @@ def sync():
 	
 def info():
 	print(divider)
-	entries_num = get_entry_num()
-	links_num = get_links_num()
-	print('current number of your precious zettels is:', entries_num)
-	print('current number of links between zettels is:', links_num)
-	print(divider)
+	if os.path.isfile(db_path):
+		entries_num = get_entry_num()
+		links_num = get_links_num()
+		print('current number of your precious zettels is:', entries_num)
+		print('current number of links between zettels is:', links_num)
+		print(divider)
+	else:
+		print('initiate database with update command')
+		print(divider)
 	
 def tree():
 	os.system('tree'+' '+path)
@@ -718,7 +752,16 @@ def find_zettel():
 def review():
 	errors = False
 	print(divider)
-	# no zettels check
+	print('checking your zettels...')
+	print(divider)
+	print()
+	if list_no_titles():
+		print(divider)
+		print('there are zettels without titles listed above, inspect')
+		print(divider)
+		print()
+		errors = True
+		
 	if list_no_bodies():
 		print(divider)
 		print('there are zettels without text listed above, fill them')
