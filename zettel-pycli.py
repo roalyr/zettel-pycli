@@ -90,6 +90,10 @@ create_tags_table = '''
 	CREATE TABLE IF NOT EXISTS tags (
 		id integer PRIMARY KEY, z_id integer NOT NULL, tag text NOT NULL
 	); '''
+create_tags_list_table = '''
+	CREATE TABLE IF NOT EXISTS tags_list (
+		id integer PRIMARY KEY, tag text NOT NULL, UNIQUE ( tag )
+	); '''
 
 insert_main = '''INSERT INTO main ( z_title, z_path, z_body ) VALUES ( ?, ?, ? ) '''
 insert_links = '''INSERT INTO links ( z_id_from, z_path_to ) VALUES ( ?, ? ) '''
@@ -99,11 +103,12 @@ insert_self_links = '''INSERT INTO self_links ( z_id_from ) VALUES ( ? ) '''
 insert_empties = '''INSERT INTO empties ( z_id_from ) VALUES ( ? ) '''
 insert_titleless = '''INSERT INTO titleless ( z_id_from ) VALUES ( ? ) '''
 insert_tags = '''INSERT INTO tags ( z_id, tag ) VALUES ( ?, ? ) '''
+insert_tags_list = '''INSERT OR IGNORE INTO tags_list ( tag ) VALUES ( ? ) ''' #if not n table
 insert_meta = '''
 	INSERT INTO meta (
 		db_name, datetime, tot_zettels, tot_links, tot_invalid_links,
 		tot_no_links, tot_self_links, tot_no_bodies, tot_no_titles
-	) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ? ) '''
+	) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ? ) ''' #add tags num
 	
 #Just fancy stuff
 banner_log	  = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ LOG ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
@@ -316,15 +321,33 @@ def make_new_zettel():
 	while True:
 		print_links_select()
 		inp = input("Enter to continue, 'q' to finish selecting » ").strip()
-		try: z_links.append(increm_input_title_name()[0])
-		except: pass
-		z_links = list(dict.fromkeys(z_links)) #de-duplicate links list
-		print('Selected links:', z_links)
+		os.system('clear')
 		if inp == "q": break
+		try: 
+			z_links.append(increm_input_title_name()[0])
+			z_links = list(dict.fromkeys(z_links)) #de-duplicate links list
+			print('Selected links:', z_links)
+		except: pass
 	#return the list of tags which should be written later
+	while True:
+		print_tags_select()
+		inp = input("Enter to continue, 'q' to finish selecting » ").strip()
+		os.system('clear')
+		if inp == "q": break
+		try: 
+			z_tags.append(increm_input_tags()[1])
+			z_tags = list(dict.fromkeys(z_tags)) #de-duplicate links list
+			print('Selected links:', z_tags)
+		except: pass
+	#preview
+	print(divider)
 	print('Title:',z_title)
 	print()
 	print('Text:', z_body)
+	print()
+	print('Tags:', z_tags)
+	print()
+	print('Links:', z_links)
 	print(divider)
 
 def query_db(exec_line, db_path):
@@ -361,10 +384,10 @@ def import_to_db():
 				c.execute(create_links_table); c.execute(create_invalid_links_table)
 				c.execute(create_no_links_table); c.execute(create_self_links_table)
 				c.execute(create_tags_table); c.execute(create_empties_table)
-				c.execute(create_titleless_table)
+				c.execute(create_titleless_table); c.execute(create_tags_list_table);
 				#populate tables
-				links = []; tot_links = 0; tot_invalid_links = 0; tot_self_links = 0
-				tot_no_links = 0; tot_no_bodies = 0; tot_no_titles = 0
+				links = []; tot_links = 0; tot_tags = 0; tot_invalid_links = 0; 
+				tot_no_links = 0; tot_no_bodies = 0; tot_no_titles = 0; tot_self_links = 0
 				#main table
 				for root, dirs, files in os.walk(path):
 					for name in files:
@@ -383,6 +406,7 @@ def import_to_db():
 						#store metadata
 						for tag in tags:
 							c.execute(insert_tags, (current_zettel_id, tag,))
+							c.execute(insert_tags_list, (tag,))
 						#store errors
 						if z_body == '':
 							c.execute(insert_empties, (current_zettel_id,))
@@ -451,15 +475,11 @@ def init_new_db():
 			try:
 				c = conn.cursor()
 				#create tables
-				c.execute(create_meta_table)
-				c.execute(create_main_table)
-				c.execute(create_links_table)
-				c.execute(create_invalid_links_table)
-				c.execute(create_no_links_table)
-				c.execute(create_self_links_table)
-				c.execute(create_tags_table)
-				c.execute(create_empties_table)
-				c.execute(create_titleless_table)
+				c.execute(create_meta_table); c.execute(create_main_table)
+				c.execute(create_links_table); c.execute(create_invalid_links_table)
+				c.execute(create_no_links_table); c.execute(create_self_links_table)
+				c.execute(create_tags_table); c.execute(create_empties_table)
+				c.execute(create_titleless_table); c.execute(create_tags_list_table);
 				#write meta
 				c.execute(insert_meta, (database_name, dt_str, 0, 0, 0, 0, 0, 0, 0,))
 				conn.commit()
@@ -481,7 +501,7 @@ def increm_input_title_name():
 	inp = ''
 	entities = []
 	while True:
-		num = 0
+		num = 1
 		#see if we are entering the name or command
 		if inp != ':':
 			os.system('clear')
@@ -503,8 +523,8 @@ def increm_input_title_name():
 			print()
 			print(divider)
 			try: 
-				print_entries(entries[int(i)], int(i))
-				return entries[int(i)] #return the one selected from list
+				print_entries(entries[int(i)-1], int(i))
+				return entries[int(i)-1] #return the one selected from list
 			except: pass
 			finally:
 				if i == "c": name = ''; inp = '' 
@@ -525,6 +545,63 @@ def increm_input_title_name():
 			print('no zettel found, returning to main menu')
 			print(divider)
 			return #or return nothing
+		inp = input('srarching for: ' + name + " « ")
+		
+def increm_input_tags():
+	#accessory function
+	def print_entries(entry, val):
+		tag = entry[1]
+		print('selected:', str(val)+'.', tag)
+	
+	name = ''
+	inp = ''
+	entities = []
+	while True:
+		num = 1
+		#see if we are entering the name or command
+		if inp != ':':
+			os.system('clear')
+			print(divider)
+			name += inp
+		#show all if no input, or find by name or title
+		if name == '':
+			get_all = "SELECT DISTINCT * FROM tags_list"
+			entries = query_db(get_all, current_db_path)
+		else:
+			get_by_name = "SELECT DISTINCT * FROM tags_list WHERE tag LIKE '%"+name+"%' "
+			entries = query_db(get_by_name, current_db_path)
+		#search sub-menu
+		if inp == ':':
+			selected_entry = []
+			print(divider)
+			print_search_commands()
+			i = input(" » ")
+			print()
+			print(divider)
+			try: 
+				print_entries(entries[int(i)-1], int(i))
+				return entries[int(i)-1] #return the one selected from list
+			except: pass
+			finally:
+				if i == "c": name = ''; inp = '' 
+				entries = query_db(get_all, current_db_path) 
+			os.system('clear')
+		#printing out entries
+		if len(entries) > 1:
+			for entry in entries:
+				print(str(num)+'.', entry[1])
+				num += 1
+			print(divider)
+			print('total search hits:', len(entries))
+			print_searching()
+		elif len(entries) == 1: 
+			print_entries(entries[0], '')
+			return entries[0] #return what was found by narrowing down
+		elif len(entries) == 0: 
+			print('no tag found, make it?')
+			print(divider)
+			#store in tags
+			return #or return a new tag
 		inp = input('srarching for: ' + name + " « ")
 		
 def list_corrupt_links():
@@ -684,6 +761,13 @@ def print_links_select():
 	print('select a zettel from the list to link to')
 	print('you can open and read it as usual')
 	print('to confirm selection return after finding it')
+	print(divider)
+
+def print_tags_select():
+	print(divider)
+	print('select a suitable tag for your zettel')
+	print('you can either search for existing tag')
+	print('or write a new one if no suitable found')
 	print(divider)
 
 def print_no_db():
