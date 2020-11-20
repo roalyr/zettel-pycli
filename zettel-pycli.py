@@ -640,46 +640,64 @@ def update_db():
 
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYSIS OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def print_search_commands():
+	print("'number' - select entry")
+	print("(c) - clear search query")
+	
+def print_entries(entry, val):
+	z_title = entry[1]
+	z_path = entry[2]
+	z_id = entry[0]
+	if z_title != '':
+		print()
+		print('selected:', str(val)+'.', z_path)
+		print(' ╰ ' + z_title)
+	else:
+		print()
+		print('selected:', str(val)+'.', z_path)
+	print_zettel_ops()
+	zettel_ops(z_id)
+
 def increm_input_title_name():
 	name = ''
+	inp = ''
 	entities = []
 	while True:
-		inp = input(name + " < ")
-		os.system('clear')
-		print(divider)
-		
-		name += inp
 		num = 0
+		inp = input('srarching for: ' + name + " « ")
+		#see if we are entering the name or command
+		if inp != ':':
+			os.system('clear')
+			print(divider)
+			name += inp
 		
 		#show all if no input
 		if name == '':
 			get_all = "SELECT * FROM main"
 			entries = query_db(get_all)
 		#or find by name or title
-		if name != '' and name[0] != ":":
+		if name != '':
 			get_by_name = "SELECT * FROM main WHERE z_path LIKE '%"+name+"%' OR z_title LIKE '%"+name+"%'"
 			entries = query_db(get_by_name)
 		
-		#pick up by number in list
-		try:
-			if inp[0] == ":": 
-				val = int(inp[1:])
-				
-				if entries[val][1] != '':
-					title = entries[val][1]
-					print('selected:', str(val)+'.', entries[val][2])
-					print(' ╰ ' + title)
-				else:
-					print('selected:', str(val)+'.', entries[val][2])
-				print('what shall we do next?')
-				get_exact = "SELECT * FROM main WHERE id = " + str(entries[val][0])
-				row = query_db(get_exact)
-				z_id = row[0][0]
-				print_zettel_ops()
-				zettel_ops(inp, z_id)
-				return
-		except:
-			pass
+		#commands sub-menu
+		if inp == ':':
+			print(divider)
+			print_search_commands()
+			i = input(" » ")
+			print()
+			print(divider)
+			try:
+				val = int(i)
+				print_entries(entries[val], val)
+			except:
+				pass
+			finally:
+				if i == "c":
+					name = ''
+					inp = ''
+			os.system('clear')
+			continue
 		
 		if len(entries) > 1:
 			for entry in entries:
@@ -696,32 +714,18 @@ def increm_input_title_name():
 			print(divider)
 			print('total search hits:', len(entries))
 			print('keep narrowing your search by entering more characters')
-			print('or enter :number to pick an entity from the query list')
+			print("or enter ':' for search tools")
 			print(divider)
 			
 		elif len(entries) == 1: 
-			entry = entries[0]
-			print()
-			if entry[1] != '':
-				title = entry[1]
-				print()
-				print('found:', entry[2])
-				print(' ╰ ' + title)
-			else:
-				print()
-				print('found:', entry[2])
-			print('what shall we do next?')
-			get_exact = "SELECT * FROM main WHERE id = " + str(entries[0][0])
-			row = query_db(get_exact)
-			z_id = row[0][0]
-			print_zettel_ops()
-			zettel_ops(inp, z_id)
-			return
+			print_entries(entries[0], '')
 		
 		#break if neither name matches
 		elif len(entries) == 0: 
-			print('no zettel found')
+			print('no zettel found, returning to main menu')
+			print(divider)
 			return
+		
 		
 def list_corrupt_links():
 	get_all = "SELECT * FROM invalid_links"
@@ -780,7 +784,7 @@ def print_zettel_ops():
 	print('')
 	print('(q) - quit')
 	
-def zettel_ops(inp, z_id):
+def zettel_ops(z_id):
 	while True:
 		inp = input("ZETTEL OPS ('?' for commands) » ").strip()
 		if inp == "":
