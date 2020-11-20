@@ -1,5 +1,5 @@
 #▒▒▒▒▒▒▒▒▒▒▒▒ USER OPTIONS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-kasten_name = "my_vault"
+database_name = "my_vault"
 
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CREDITS & LICENCE ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -33,8 +33,8 @@ kasten_name = "my_vault"
 import os, fnmatch, shutil, pathlib, sqlite3, time, re, random
 from sqlite3 import Error
 
-path = os.path.join(os.getcwd(), kasten_name)
-db_path = os.path.join(os.getcwd(), kasten_name + '_index.db')
+path = os.path.join(os.getcwd(), database_name)
+db_path = os.path.join(os.getcwd(), database_name + '_index.db')
 pathlib.Path(path).mkdir(parents=True, exist_ok=True)
 zettel_template_name = "_template.md"
 
@@ -48,6 +48,20 @@ zettel_template = '\n\n\n'.join([marker_title,
 marker_body, marker_tags, marker_links, ''])
 
 #SQL schemas
+create_meta_table = '''
+	CREATE TABLE IF NOT EXISTS meta (
+		id integer PRIMARY KEY,
+		db_name text NOT NULL,
+		datetime text NOT NULL,
+		tot_zettels integer NOT NULL,
+		tot_links integer NOT NULL,
+		tot_invalid_links integer NOT NULL,
+		tot_no_links integer NOT NULL,
+		tot_self_links integer NOT NULL,
+		tot_no_bodies integer NOT NULL,
+		tot_no_titles integer NOT NULL
+	); '''
+
 create_main_table = '''
 	CREATE TABLE IF NOT EXISTS main (
 		id integer PRIMARY KEY,
@@ -100,6 +114,22 @@ create_tags_table = '''
 		z_id integer NOT NULL,
 		tag text NOT NULL
 	); '''
+
+insert_meta = '''
+	INSERT INTO meta (
+		db_name,
+		datetime,
+		tot_zettels,
+		tot_links,
+		tot_invalid_links,
+		tot_no_links,
+		tot_self_links,
+		tot_no_bodies,
+		tot_no_titles
+	)
+	VALUES(
+		?, ?, ?, ?, ?, ?, ?, ?, ?
+	) '''
 
 insert_main = '''
 	INSERT INTO main (
@@ -303,36 +333,62 @@ def gen_template():
 def make_test_batch():
 	inp_num = input("enter the amount of zettels to make » ").strip()
 	inp_links = input("enter the amount of links per zettel to make » ").strip()
-			
+	inp_corr = input("enter the amount of correct zettels (0.0 .. 1.0) » ").strip()
+	
+	#perfect zettels
 	for i in range(int(inp_num)):
-		links = ''
-		try:
-			#generate links, avoiding self-linking
-			for j in range(int(inp_links)):
-				rnd = random.randrange(int(inp_num))
-				if rnd == i:
-					rnd += 1
-				if rnd == int(inp_num):
-					rnd -= 2
-				links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
-		except:
-			pass
+		frnd = random.random() 
+		frnd2 = random.random() 
+		frnd3 = random.random() 
+		if frnd <= float(inp_corr):
+			links = ''
+			try:
+				#generate links, avoiding self-linking
+				for j in range(int(inp_links)):
+					rnd = random.randrange(int(inp_num))
+					if rnd == i:
+						rnd += 1
+					if rnd == int(inp_num):
+						rnd -= 2
+					links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
+			except:
+				pass
+			
+			zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i) \
+			+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
+			+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
 		
-		zettel_template_test = marker_title \
-		+ '\n' \
-		+ 'Test zettel № ' + str(i) \
-		+ '\n\n' \
-		+ marker_body \
-		+ '\n' \
-		+ lorem \
-		+ '\n\n' \
-		+ marker_tags \
-		+ '\n' \
-		+ "test, zettel batch, performance" \
-		+ '\n\n' \
-		+ marker_links \
-		+ '\n' \
-		+ links
+		else:
+			#bad zettels
+			links = ''
+			try:
+				if frnd3 < 0.25:
+					for j in range(int(inp_links)):
+						rnd = random.randrange(int(inp_num))
+						links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
+				elif frnd2 < 0.5 and frnd >= 0.25:
+					links += '[some](bronek links)'
+				elif frnd < 0.75 and frnd >= 0.5:
+					links += '[Self link '+str(j)+']('+str(i)+'.md)\n'
+				else: 
+					pass
+			except:
+				pass
+			
+			if frnd < 0.33:
+				zettel_template_test = marker_title + '\n'\
+				+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
+				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
+				
+			elif frnd3 < 0.66 and frnd >= 0.33:
+				zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i) \
+				+ '\n\n' + marker_body + '\n\n' + marker_tags + '\n' \
+				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
+			
+			elif frnd2 <= 1.0 and frnd >= 0.66:
+				zettel_template_test = marker_title + '\n'\
+				+ '\n\n' + marker_body + '\n' + marker_tags + '\n' \
+				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
 		
 		
 		f = open(path + "/" + str(i) + '.md', "w")
@@ -442,6 +498,20 @@ def query_db(exec_line):
 			conn.close()
 			return found
 
+def print_db_meta():
+	meta = query_db("SELECT * FROM meta")
+	print('database name:', meta[0][1])
+	print('created:', meta[0][2])
+	print('total number of zettels:', meta[0][3])
+	print('total number of links:', meta[0][4])
+	print(divider)
+	print('warnings:')
+	print('invalid links:', meta[0][5])
+	print('zettels without links:', meta[0][6])
+	print('zettels that link to themselves:', meta[0][7])
+	print('empty zettels:', meta[0][8])
+	print('zettels without titles:', meta[0][9])
+
 def update_db():
 	#remove existing db
 	try:
@@ -461,6 +531,7 @@ def update_db():
 				c = conn.cursor()
 				
 				#create tables
+				c.execute(create_meta_table)
 				c.execute(create_main_table)
 				c.execute(create_links_table)
 				c.execute(create_invalid_links_table)
@@ -473,7 +544,13 @@ def update_db():
 				#populate tables
 				time_start = time.time()
 				links = []
-				
+				tot_links = 0
+				tot_invalid_links = 0
+				tot_self_links = 0
+				tot_no_links = 0
+				tot_no_bodies = 0
+				tot_no_titles = 0
+
 				#main table
 				for root, dirs, files in os.walk(path):
 					for name in files:
@@ -502,8 +579,10 @@ def update_db():
 						#store errors
 						if z_body == '':
 							c.execute(insert_empties, (current_zettel_id,))
+							tot_no_bodies += 1
 						if z_title == '':
 							c.execute(insert_titleless, (current_zettel_id,))
+							tot_no_titles += 1
 							
 				#links must be done only once main tabe is populated
 				for root, dirs, files in os.walk(path):
@@ -515,6 +594,7 @@ def update_db():
 						parsed = parse_zettel_metadata(full_path)
 						
 						links = parsed['links']
+						tot_links += len(links)
 						
 						#get the current zettel id
 						c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
@@ -533,15 +613,26 @@ def update_db():
 									c.execute(insert_links, (current_zettel_id, valid_zettel_id,))
 								else:
 									c.execute(insert_self_links, (current_zettel_id,))
+									tot_self_links += 1
 							else:
 								c.execute(insert_invalid_links, (current_zettel_id, z_path_to,))
+								tot_invalid_links += 1
 						if links == []:
 							c.execute(insert_no_links, (current_zettel_id,))
-							
+							tot_no_links += 1
+				
+				tot_zettels = len(files)
+				
+				#write meta
+				dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
+				c.execute(insert_meta, (database_name, dt_str, tot_zettels, tot_links, tot_invalid_links, tot_no_links, 
+					tot_self_links, tot_no_bodies, tot_no_titles,))
+				
 				conn.commit()
 				time_end = time.time()
-				print('database rebuilt in: ', time_end - time_start)
-			
+				print('database rebuilt in:', time_end - time_start, 's')
+				print_db_meta()
+					
 			except Error as e:
 				print(e)
 			conn.close()
@@ -673,18 +764,6 @@ def list_zettels(exec_str):
 		num += 1
 	return True
 	
-def get_links_num():
-	get_all = "SELECT * FROM links"
-	entries = query_db(get_all)
-	num = len(entries)
-	return num
-	
-def get_entry_num():
-	get_all = "SELECT * FROM main"
-	entries = query_db(get_all)
-	num = len(entries)
-	return num
-
 def print_zettel_body(z_id):
 	get_body = "SELECT * FROM main WHERE id =" + str(z_id)
 	body = query_db(get_body)
@@ -725,10 +804,7 @@ def sync():
 def info():
 	print(divider)
 	if os.path.isfile(db_path):
-		entries_num = get_entry_num()
-		links_num = get_links_num()
-		print('current number of your precious zettels is:', entries_num)
-		print('current number of links between zettels is:', links_num)
+		print_db_meta()
 		print(divider)
 	else:
 		print('initiate database with update command')
