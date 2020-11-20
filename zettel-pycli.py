@@ -30,12 +30,11 @@ database_name = "my_vault" # default name for new databases
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ SCRIPT BODY ▒▒▒▒▒▒▒▒▒▒▒▒▒
 #▒▒▒▒▒▒▒▒▒▒▒▒ INIT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-import os, fnmatch, shutil, pathlib, sqlite3, time, re, random
+import os, fnmatch, shutil, pathlib, sqlite3, time, re, random, tempfile, subprocess
 from sqlite3 import Error
 
 path = os.path.join(os.getcwd(), database_name)
 current_db_path = os.path.join(os.getcwd(), database_name + '.db')
-pathlib.Path(path).mkdir(parents=True, exist_ok=True)
 zettel_template_name = "_template.md"
 
 marker_title = '[TITLE]'
@@ -271,13 +270,6 @@ def make_test_batch():
 		f.write(zettel_template_test)
 		f.close()
 	
-def make_new():
-	inp = input("enter zettel name » ").strip()
-	f = open(path + "/" + inp + '.md', "w")
-	f.write(zettel_template_test)
-	f.close()
-	return inp
-
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ PARSING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def find_md_links(md):
@@ -330,9 +322,47 @@ def parse_zettel_metadata(z_path):
 		if reading_tags: data['tags'] += find_comma_separated(line)
 		if reading_links: data['links'] += find_md_links(line)
 	return data
+
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ WRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def write_std():
+	print()
+	return ''
 	
+def write_ext(option):
+	print()
+	return ''
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def print_writer_options():
+	print(divider)
+	print('to use any of provided external editors,')
+	print('make sure they are installed')
+	print()
+	print('() - write using standard input')
+	print('(v) - write using vim')
+	print('(e) - write using emacs')
+	print('(n) - write using nano')
+	print(divider)
+	
+def make_new():
+	z_title = ''
+	z_body = ''
+	os.system('clear')
+	print(divider)
+	while z_title == '': z_title = input("enter zettel title » ").strip()
+	while z_body == '':
+		print_writer_options()
+		inp = input("Select editor » ").strip()
+		os.system('clear')
+		if inp == '': z_body = write_std()
+		elif inp == 'v': z_body = write_ext('vim')
+		elif inp == 'n': z_body = write_ext('nano')
+		elif inp == 'e': z_body = write_ext('emacs')
+		elif inp == "q": return
+	print(z_body)
+	
+
 def query_db(exec_line, db_path):
 	found = []
 	conn = None
@@ -366,6 +396,7 @@ def print_db_meta(db_path):
 		print("couldn't find metadata table on:", db_path)
 
 def import_to_db():
+	print('folders with nested sub-folders are not supported')
 	inp = input('Provide local folder name to import from » ').strip()
 	if not os.path.isdir(inp):
 		print('wrong folder name, aborting')
@@ -416,7 +447,7 @@ def import_to_db():
 						c.execute(insert_main, (z_title, z_path, z_body))
 						
 						#get the current zettel id
-						c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
+						c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (z_path,))
 						current_zettel_id = c.fetchall()[0][0]
 						
 						#store metadata
@@ -443,7 +474,7 @@ def import_to_db():
 						tot_links += len(links)
 						
 						#get the current zettel id
-						c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (name,))
+						c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (z_path,))
 						current_zettel_id = c.fetchall()[0][0]
 						
 						#see if links point out to existing nodes
@@ -478,7 +509,9 @@ def import_to_db():
 				print('database rebuilt in:', time_end - time_start, 's')
 				print(divider)
 				print_db_meta(db_name_imported)
-					
+				print(divider)
+				print('to use the database rename it to match:', database_name+'.db')
+				
 			except Error as e: print(e)
 			conn.close()
 			
@@ -737,10 +770,8 @@ def review():
 		print(divider)
 	
 def make_new_zettel():
-	zettel_name = make_new()
 	print(divider)
-	print('generated a new empty zettel from template:', zettel_name)
-	print("don't forget to update the database")
+	zettel_name = make_new()
 	print(divider)
 	
 def make_test_zettels():
