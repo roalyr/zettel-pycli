@@ -181,8 +181,7 @@ def gen_template():
 	f.close()
 	
 def make_test_batch():
-	print(divider)
-	print('make sure you backed up your journal folder')
+	print_test_warn()
 	try:
 		inp_num = int(input("enter the amount of zettels to make » ").strip())
 		inp_links = int(input("enter the amount of links per zettel to make » ").strip())
@@ -227,9 +226,10 @@ def make_test_batch():
 				zettel_template_test = marker_title + '\n'\
 				+ '\n\n' + marker_body + '\n' + marker_tags + '\n' \
 				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
+		if not os.path.exists(path): os.mkdir(path)
 		f = open(path + "/" + str(i) + '.md', "w")
 		f.write(zettel_template_test); f.close()
-		return True #succeeded
+	return True #succeeded
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ PARSING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def find_md_links(md):
@@ -468,14 +468,15 @@ def init_new_db():
 			conn.close()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYSIS OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def print_entries(entry, val):
-	z_title = entry[1]
-	z_id = entry[0]
-	print('selected:', str(val)+'.', z_title)
-	print_zettel_ops()
-	zettel_ops(z_id, z_title)
-
 def increm_input_title_name():
+	#accessory function
+	def print_entries(entry, val):
+		z_title = entry[1]
+		z_id = entry[0]
+		print('selected:', str(val)+'.', z_title)
+		print_zettel_ops()
+		zettel_ops(z_id, z_title)
+	
 	name = ''
 	inp = ''
 	entities = []
@@ -670,7 +671,14 @@ def print_test_failed():
 	print(divider)
 	print('make sure you enter numbers')
 	print(divider)
-	
+
+def print_test_warn():
+	print(divider)
+	print('make sure you have backed up your journal folder')
+	print('this will generate a batch of zettel .md cards in it')
+	print('you will have to import them back into a database')
+	print(divider)
+
 def print_links_select():
 	print(divider)
 	print('select a zettel from the list to link to')
