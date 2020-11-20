@@ -1,6 +1,6 @@
 #▒▒▒▒▒▒▒▒▒▒▒▒ USER OPTIONS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 database_name = "my_vault" # default name for new databases
-
+default_editor = "nano" #enter anything that suits your preference
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CREDITS & LICENCE ▒▒▒▒▒▒▒▒▒▒▒▒▒
 # https://writingcooperative.com/zettelkasten-how-one-german-
@@ -216,23 +216,27 @@ def gen_template():
 	f.close()
 	
 def make_test_batch():
-	inp_num = input("enter the amount of zettels to make » ").strip()
-	inp_links = input("enter the amount of links per zettel to make » ").strip()
-	inp_corr = input("enter the amount of correct zettels (0.0 .. 1.0) » ").strip()
+	print(divider)
+	print('make sure you backed up your journal folder')
+	try:
+		inp_num = int(input("enter the amount of zettels to make » ").strip())
+		inp_links = int(input("enter the amount of links per zettel to make » ").strip())
+		inp_corr = float(input("enter the amount of correct zettels (0.0 .. 1.0) » ").strip())
+	except: print_test_failed(); return False #failed
 	
 	#perfect zettels
-	for i in range(int(inp_num)):
+	for i in range(inp_num):
 		frnd = random.random() 
 		frnd2 = random.random() 
 		frnd3 = random.random() 
-		if frnd <= float(inp_corr):
+		if frnd <= inp_corr:
 			links = ''
 			try:
 				#generate links, avoiding self-linking
-				for j in range(int(inp_links)):
-					rnd = random.randrange(int(inp_num))
+				for j in range(inp_links):
+					rnd = random.randrange(inp_num)
 					if rnd == i: rnd += 1
-					if rnd == int(inp_num): rnd -= 2
+					if rnd == inp_num: rnd -= 2
 					links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
 			except: pass
 			
@@ -245,8 +249,8 @@ def make_test_batch():
 			links = ''
 			try:
 				if frnd3 < 0.25:
-					for j in range(int(inp_links)):
-						rnd = random.randrange(int(inp_num))
+					for j in range(inp_links):
+						rnd = random.randrange(inp_num)
 						links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
 				elif frnd2 < 0.5 and frnd >= 0.25: links += '[some](bronek links)'
 				elif frnd < 0.75 and frnd >= 0.5: links += '[Self link '+str(j)+']('+str(i)+'.md)\n'
@@ -269,6 +273,7 @@ def make_test_batch():
 		f = open(path + "/" + str(i) + '.md', "w")
 		f.write(zettel_template_test)
 		f.close()
+		return True #succeeded
 	
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ PARSING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -325,13 +330,18 @@ def parse_zettel_metadata(z_path):
 
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ WRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def write_std():
-	print()
-	return ''
-	
 def write_ext(option):
-	print()
-	return ''
+	written = ''
+	initial_message = b"stuff" # if you want to set up the file somehow
+	with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
+		#tf.write(initial_message)
+		#tf.flush()
+		try: subprocess.call([option, tf.name])
+		except: print('no command found:', option); return written
+		finally:
+			tf.seek(0)
+			written = tf.read().decode("utf-8")
+	return written
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def print_writer_options():
@@ -339,15 +349,17 @@ def print_writer_options():
 	print('to use any of provided external editors,')
 	print('make sure they are installed')
 	print()
-	print('() - write using standard input')
+	print('() - write with user-defined editor (see script header)')
 	print('(v) - write using vim')
 	print('(e) - write using emacs')
 	print('(n) - write using nano')
 	print(divider)
 	
-def make_new():
+def make_new_zettel():
 	z_title = ''
 	z_body = ''
+	z_tags = []
+	z_links = []
 	os.system('clear')
 	print(divider)
 	while z_title == '': z_title = input("enter zettel title » ").strip()
@@ -355,12 +367,27 @@ def make_new():
 		print_writer_options()
 		inp = input("Select editor » ").strip()
 		os.system('clear')
-		if inp == '': z_body = write_std()
+		if inp == '': z_body = write_ext(default_editor)
 		elif inp == 'v': z_body = write_ext('vim')
 		elif inp == 'n': z_body = write_ext('nano')
 		elif inp == 'e': z_body = write_ext('emacs')
 		elif inp == "q": return
-	print(z_body)
+	
+	#testung
+	#return the list of link which should be written later
+	while True:
+		print_links_select()
+		inp = input("Enter to continue, 'q' to finish selecting » ").strip()
+		try: z_links.append(increm_input_title_name()[0])
+		except: pass
+		z_links = list(dict.fromkeys(z_links)) #de-duplicate links list
+		print('Selected links:', z_links)
+		if inp == "q": break
+	#return the list of tags which should be written later
+	print('Title:',z_title)
+	print()
+	print('Text:', z_body)
+	print(divider)
 	
 
 def query_db(exec_line, db_path):
@@ -586,9 +613,19 @@ def increm_input_title_name():
 		
 		#search sub-menu
 		if inp == ':':
-			if search_ops(entries): 
-				name = ''; inp = '' #resets
-				entries = query_db(get_all, current_db_path) #resets
+			selected_entry = []
+			print(divider)
+			print_search_commands()
+			i = input(" » ")
+			print()
+			print(divider)
+			try: 
+				print_entries(entries[int(i)], int(i))
+				return entries[int(i)] #return the one selected from list
+			except: pass
+			finally:
+				if i == "c": name = ''; inp = '' 
+				entries = query_db(get_all, current_db_path) 
 			os.system('clear')
 		
 		#printing out entries
@@ -610,10 +647,11 @@ def increm_input_title_name():
 			print(divider)
 		elif len(entries) == 1: 
 			print_entries(entries[0], '')
+			return entries[0] #return what was found by narrowing down
 		elif len(entries) == 0: 
 			print('no zettel found, returning to main menu')
 			print(divider)
-			return
+			return #or return nothing
 		
 		inp = input('srarching for: ' + name + " « ")
 		
@@ -656,16 +694,6 @@ def print_search_commands():
 	print("'number' - select entry")
 	print("(c) - clear search query")
 
-def search_ops(entries):
-	print(divider)
-	print_search_commands()
-	i = input(" » ")
-	print()
-	print(divider)
-	try: print_entries(entries[int(i)], int(i))
-	except: pass
-	finally:
-		if i == "c": return True #reset query input
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ZETTEL OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def print_zettel_body(z_id):
@@ -678,7 +706,7 @@ def print_zettel_body(z_id):
 def print_zettel_ops():
 	print(divider)
 	print('() - read current zettel')
-	print('(q) - quit')
+	print('(q) - return to previous menu')
 	print(divider)
 	
 def zettel_ops(z_id, z_path):
@@ -769,39 +797,8 @@ def review():
 		print('all good, no corrupt links or unlinked zettels')
 		print(divider)
 	
-def make_new_zettel():
-	print(divider)
-	zettel_name = make_new()
-	print(divider)
-	
 def make_test_zettels():
-	print(divider)
-	print('make sure you backed up your journal folder')
-	make_test_batch()
-	print(divider)
-	print('generated a number of test zettels')
-	print("don't forget to update the database")
-	print(divider)
-	
-def print_no_db():
-	print('no database matching the name provided in this script')
-	print('check the name in the script header, or import or')
-	print('initiate the database via respective commands')
-	
-def print_main_ops():
-	print(divider)
-	print('() - show statistics')
-	print('(f) - incrementally find zettel to enter the database')
-	print('(r) - review zettels for errors in links and content')
-	print('(tree) - use "tree" command to show files')
-	print('(init) - make a new database (name in script header)')
-	print('(n) - make new empty zettel')
-	print('(temp) - generate a template zettel')
-	print('(test) - generate a batch of test zettels')
-	print('(import) - import .md zettels to the database')
-	print('(t) - git menu')
-	print('(q) - quit')
-	print(divider)
+	if make_test_batch(): print_made_tests()
 	
 def main_menu():
 	os.system('clear')
@@ -822,4 +819,47 @@ def main_menu():
 		elif inp == "?": print_main_ops()
 		elif inp == "q": quit()
 
+#▒▒▒▒▒▒▒▒▒▒▒▒ PRINT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def print_made_tests():
+	print(divider)
+	print('generated a number of test zettels')
+	print("don't forget to import them into the database")
+	print(divider)
+	
+def print_test_failed():
+	print(divider)
+	print('make sure you enter numbers')
+	print(divider)
+	
+def print_links_select():
+	print(divider)
+	print('select a zettel from the list to link to')
+	print('you can open and read it as usual')
+	print('to confirm selection return after finding it')
+	print(divider)
+
+def print_no_db():
+	print('no database matching the name provided in this script')
+	print('check the name in the script header, or import or')
+	print('initiate the database via respective commands')
+	
+def print_main_ops():
+	print(divider)
+	print('() - show statistics')
+	print('(f) - incrementally find zettel to enter the database')
+	print('(r) - review zettels for errors in links and content')
+	print('(n) - start writing a new zettel')
+	print('(tree) - use "tree" command to show files')
+	print('(init) - make a new database (name in script header)')
+	print('(temp) - generate a template zettel')
+	print('(test) - generate a batch of test zettels')
+	print('(import) - import .md zettels to the database')
+	print('(t) - git menu')
+	print('(q) - quit')
+	print(divider)
+	
+	
+#▒▒▒▒▒▒▒▒▒▒▒▒ START ▒▒▒▒▒▒▒▒▒▒▒▒▒
 main_menu()
+
+
