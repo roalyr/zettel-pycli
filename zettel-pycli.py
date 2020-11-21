@@ -495,6 +495,20 @@ def read_z_body(z_id):
 def read_z_title(z_id):
 	get = "SELECT DISTINCT * FROM main WHERE id =" + str(z_id)
 	return query_db(get, current_db_path)[0][1]
+	
+def read_z_tags(z_id):
+	get = "SELECT DISTINCT * FROM main WHERE id =" + str(z_id)
+	return query_db(get, current_db_path)[0][1]
+	
+def read_z_links(z_id):
+	get = "SELECT DISTINCT * FROM main WHERE id =" + str(z_id)
+	return query_db(get, current_db_path)[0][1]
+
+def read_whole_zettel(z_id):
+	return marker_title + '\n' + read_z_title(z_id) + '\n\n' \
+	+ marker_body+ '\n' + read_z_body(z_id) + '\n\n' \
+	+ marker_tags+ '\n' + read_z_tags(z_id) + '\n\n' \
+	+ marker_links+ '\n' + read_z_links(z_id)
 
 def read_tags_list_table():
 	get_all = "SELECT DISTINCT * FROM tags_list"
@@ -515,15 +529,13 @@ def search_zettel(flag):
 			if inp == 't': flag = 'tag'; break
 			if inp == 'q': return
 	entry = (); entries = []
-	if flag == 'name': 
-		while True:
-			entry = find_by_input()
-			if entry: 
-				entries.append(entry)
-				#print_selected_zettels(entries)
-				inp = input("Search for more? 'q' to stop and return » ")
-				if inp == 'q': break
-	if flag == 'tag': entry = find_by_tag()
+	while True:
+		s = find_zettel(flag)
+		if s['found'] or s['stop']: 
+			if s['found']: entries.append(s['found'])
+			#print_selected_zettels(entries)
+			inp = input("Search for more? 'q' to stop and return » ")
+			if inp == 'q': break
 	print(divider)
 	return entry
 	
@@ -553,70 +565,40 @@ def print_many_or_return(entries):
 	elif len(entries) == 1: 
 		print_found_zettels(entries[0], '')
 		return entries[0] #return what was found by narrowing down
-		
-def find_by_input():
-	name = ''; inp = ''; entities = []
+
+def search_sub_menu(s):
+	print_search_commands()
+	i = input(" » "); print(divider)
+	try: print_found_zettels(s['entries'][int(i)-1], int(i)); s['entries'][int(i)-1]
+	except: pass
+	finally:
+		if i == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_main_table() #reset
+		if i == "q": s['stop'] = True
+	return s
+
+def find_zettel(flag):
+	s = {'found': None, 'name': '', 'inp': '', 'entries': [], 'stop': False}
+	s['entries'] = read_main_table()
 	while True:
-		os.system('clear'); print(divider)
-		#see if we are entering the name or command
-		if inp != ':': name += inp
-		#show all if no input, or find by name
-		if name == '': entries = read_main_table()
-		else:
-			get_by_name = "SELECT * FROM main WHERE z_title LIKE '%"+name+"%' "
-			entries = query_db(get_by_name, current_db_path)
-		#if search sub-menu invoked
-		if inp == ':':
-			selected_entry = []
-			print_search_commands()
-			i = input(" » ")
-			print(divider)
-			try: 
-				print_found_zettels(entries[int(i)-1], int(i))
-				return entries[int(i)-1] #return the one selected from list
-			except: pass
-			finally:
-				if i == "c": name = ''; inp = ''; entries = read_main_table() #reset
-				if i == "q": return
-			os.system('clear'); print(divider)
-		entry = print_many_or_return(entries)
-		if entry: return entry
-		inp = input('srarching for zettel: ' + name + " « ")
-		
-def find_by_tag():
-	tag = ''; inp = ''; entities = []
-	while True:
-		os.system('clear'); print(divider); list_all_tags()
-		num = 1
-		#see if we are entering the name or command
-		if inp != ':': tag += inp
-		#show all if no input, or find by tag
-		if tag == '': entries = read_main_table()
-		else:
-			entries.clear() #reset
-			get_ids = "SELECT * FROM tags WHERE tag LIKE '%"+tag+"%' "
+		os.system('clear'); print(divider); 
+		if s['inp'] != ':': s['name'] += s['inp']
+		if flag == 'tag': list_all_tags()
+		if flag == 'name': 
+			get_by_name = "SELECT * FROM main WHERE z_title LIKE '%"+s['name']+"%' "
+			s['entries'] = query_db(get_by_name, current_db_path)
+		elif flag == 'tag':
+			s['entries'].clear() #reset
+			get_ids = "SELECT * FROM tags WHERE tag LIKE '%"+s['name']+"%' "
 			tagged = query_db(get_ids, current_db_path)
 			for tagged_entry in tagged:
 				found_id = tagged_entry[1]
 				get_all_by_tag = "SELECT * FROM main WHERE id =" + str(found_id)
 				entry = query_db(get_all_by_tag, current_db_path)[0]
-				entries.append(entry)
-		#search sub-menu
-		if inp == ':':
-			selected_entry = []
-			print_search_commands()
-			i = input(" » ")
-			print(divider)
-			try: 
-				print_found_zettels(entries[int(i)-1], int(i))
-				return entries[int(i)-1] #return the one selected from list
-			except: pass
-			finally:
-				if i == "c": tag = ''; inp = ''; entries = read_main_table()
-			os.system('clear'); print(divider); list_all_tags()
-		entry = print_many_or_return(entries)
-		if entry: return entry
-		inp = input('srarching by tag: ' + tag + " « ")
+				s['entries'].append(entry) 
+		s['found'] = print_many_or_return(s['entries'])
+		if s['inp'] == ':': s = search_sub_menu(s); os.system('clear'); print(divider); print_many_or_return(s['entries'])
+		if s['found'] or s['stop']: return s
+		s['inp'] = input('searching zettel by ' + flag +': '+ s['name'] + " « ")
 		
 def find_tags_by_input():
 	tag = ''; inp = ''; entities = []
@@ -920,7 +902,9 @@ def print_db_meta(db_path):
 		print("couldn't find metadata table on:", db_path)
 
 def print_whole_zettel(z_id):
-	print(divider); print(read_z_body(z_id)); print(divider)
+	print(divider)
+	print(read_whole_zettel(z_id))
+	print(divider)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ START ▒▒▒▒▒▒▒▒▒▒▒▒▒
 main_menu()
