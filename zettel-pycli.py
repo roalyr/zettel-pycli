@@ -513,6 +513,10 @@ def read_whole_zettel(z_id):
 def read_tags_list_table():
 	get_all = "SELECT DISTINCT * FROM tags_list"
 	return query_db(get_all, current_db_path)
+
+def read_tags_table_like(name):
+	get_ids = "SELECT * FROM tags WHERE tag LIKE '%"+name+"%' "
+	return query_db(get_ids, current_db_path)
 			
 def read_main_table():
 	get_all = "SELECT * FROM main"
@@ -532,6 +536,8 @@ def search_zettel(flag):
 	while True:
 		s = find_zettel(flag)
 		if s['found'] or s['stop']: 
+			os.system('clear')
+			if s['stop']: break
 			if s['found']: entries.append(s['found'])
 			#print_selected_zettels(entries)
 			inp = input("Search for more? 'q' to stop and return » ")
@@ -588,15 +594,21 @@ def find_zettel(flag):
 			s['entries'] = query_db(get_by_name, current_db_path)
 		elif flag == 'tag':
 			s['entries'].clear() #reset
-			get_ids = "SELECT * FROM tags WHERE tag LIKE '%"+s['name']+"%' "
-			tagged = query_db(get_ids, current_db_path)
-			for tagged_entry in tagged:
-				found_id = tagged_entry[1]
-				get_all_by_tag = "SELECT * FROM main WHERE id =" + str(found_id)
-				entry = query_db(get_all_by_tag, current_db_path)[0]
-				s['entries'].append(entry) 
+			if s['name'] != '': #if entereg something - fing by tag
+				tagged = read_tags_table_like(s['name'])
+				for tagged_entry in tagged:
+					found_id = tagged_entry[1]
+					get_all_by_tag = "SELECT * FROM main WHERE id =" + str(found_id)
+					entry = query_db(get_all_by_tag, current_db_path)[0]
+					s['entries'].append(entry)
+				s['entries'] = list(dict.fromkeys(s['entries'])) #dedup
+			else: s['entries'] = read_main_table() #or show all
 		s['found'] = print_many_or_return(s['entries'])
-		if s['inp'] == ':': s = search_sub_menu(s); os.system('clear'); print(divider); print_many_or_return(s['entries'])
+		if s['inp'] == ':': 
+			s = search_sub_menu(s); 
+			os.system('clear'); print(divider);
+			if flag == 'tag': list_all_tags()
+			print_many_or_return(s['entries']); 
 		if s['found'] or s['stop']: return s
 		s['inp'] = input('searching zettel by ' + flag +': '+ s['name'] + " « ")
 		
@@ -687,10 +699,12 @@ def list_zettels(exec_str):
 	return True
 	
 def list_all_tags():
+	str = ''
 	print('available tags:')
 	for entry in read_tags_list_table():
-		print(entry[1])
-	print()
+		str += entry[1] + ', '
+	print(str)
+	print(divider)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ SUB-MENU OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def zettel_ops(z_id, z_path):
