@@ -704,32 +704,24 @@ def list_zettels(exec_str):
 		num += 1
 	return True
 	
-def list_all_tags():
-	str = ''; fin = []
-	init = read_tags_list_table()
-	for entry in init: fin.append(entry[1])
-	if sort_tags: fin.sort()
-	if draw_tags_in_line:
-		for entry in fin: str += entry + ', '
+def str_from_list(sort_flag, draw_flag, init, i):
+	strn = ''; fin = [];
+	for entry in init: fin.append(entry[i])
+	if sort_flag: fin.sort()
+	fin = list(dict.fromkeys(fin)) #dedup
+	if draw_flag:
+		for entry in fin: strn += entry + ', '
 	else:
-		for entry in fin: str += entry + '\n'
-	print('available tags:')
-	print(str)
-	print(divider)
+		for entry in fin: strn += entry + '\n'
+	return strn
+	
+def list_all_tags():
+	strn = str_from_list(sort_tags, draw_tags_in_line, read_tags_list_table(), 1)
+	print('available tags:'); print(strn); print(divider)
 
 def list_selected_zettels(entries):
-	str = ''; fin = []
-	init = entries
-	for entry in init: fin.append(entry[1])
-	if sort_tags: fin.sort()
-	fin = list(dict.fromkeys(fin)) #dedup
-	if draw_tags_in_line:
-		for entry in fin: str += entry + ', '
-	else:
-		for entry in fin: str += entry + '\n'
-	print('viewed / selected zettels:')
-	print(str)
-	print(divider)
+	strn = str_from_list(sort_titles, draw_titles_in_line, entries, 1)
+	print('viewed / selected zettels:'); print(strn); print(divider)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ SUB-MENU OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def zettel_ops(z_id, z_path):
