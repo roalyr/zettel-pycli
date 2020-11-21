@@ -1,6 +1,10 @@
 #▒▒▒▒▒▒▒▒▒▒▒▒ USER OPTIONS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 database_name = "my_vault" # default name for new databases
-default_editor = "nano" #enter anything that suits your preference
+default_editor = "nano" # enter anything that suits your preference
+sort_tags = False # if true - sorts alphabetically
+sort_titles = False # if true - sorts alphabetically
+draw_tags_in_line = False # if false - print tags in column
+draw_titles_in_line = False # if false - print titles in column
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CREDITS & LICENCE ▒▒▒▒▒▒▒▒▒▒▒▒▒
 # https://writingcooperative.com/zettelkasten-how-one-german-
@@ -532,18 +536,17 @@ def search_zettel(flag):
 			if inp == 'n': flag = 'name'; break
 			if inp == 't': flag = 'tag'; break
 			if inp == 'q': return
-	entry = (); entries = []
+	entries = []
 	while True:
 		s = find_zettel(flag)
 		if s['found'] or s['stop']: 
 			os.system('clear')
-			if s['stop']: break
 			if s['found']: entries.append(s['found'])
-			#print_selected_zettels(entries)
+			if s['stop']: break
 			inp = input("Search for more? 'q' to stop and return » ")
 			if inp == 'q': break
-	print(divider)
-	return entry
+	list_selected_zettels(entries)
+	return entries
 	
 def print_found_zettels(entry, val):
 	z_title = entry[1]
@@ -575,7 +578,9 @@ def print_many_or_return(entries):
 def search_sub_menu(s):
 	print_search_commands()
 	i = input(" » "); print(divider)
-	try: print_found_zettels(s['entries'][int(i)-1], int(i)); s['entries'][int(i)-1]
+	try: 
+		print_found_zettels(s['entries'][int(i)-1], int(i))
+		s['found'] = s['entries'][int(i)-1]
 	except: pass
 	finally:
 		if i == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_main_table() #reset
@@ -607,8 +612,9 @@ def find_zettel(flag):
 		if s['inp'] == ':': 
 			s = search_sub_menu(s); 
 			os.system('clear'); print(divider);
-			if flag == 'tag': list_all_tags()
-			print_many_or_return(s['entries']); 
+			if not s['stop']:
+				if flag == 'tag': list_all_tags()
+				print_many_or_return(s['entries']); 
 		if s['found'] or s['stop']: return s
 		s['inp'] = input('searching zettel by ' + flag +': '+ s['name'] + " « ")
 		
@@ -699,10 +705,29 @@ def list_zettels(exec_str):
 	return True
 	
 def list_all_tags():
-	str = ''
+	str = ''; fin = []
+	init = read_tags_list_table()
+	for entry in init: fin.append(entry[1])
+	if sort_tags: fin.sort()
+	if draw_tags_in_line:
+		for entry in fin: str += entry + ', '
+	else:
+		for entry in fin: str += entry + '\n'
 	print('available tags:')
-	for entry in read_tags_list_table():
-		str += entry[1] + ', '
+	print(str)
+	print(divider)
+
+def list_selected_zettels(entries):
+	str = ''; fin = []
+	init = entries
+	for entry in init: fin.append(entry[1])
+	if sort_tags: fin.sort()
+	fin = list(dict.fromkeys(fin)) #dedup
+	if draw_tags_in_line:
+		for entry in fin: str += entry + ', '
+	else:
+		for entry in fin: str += entry + '\n'
+	print('viewed / selected zettels:')
 	print(str)
 	print(divider)
 
