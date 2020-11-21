@@ -287,7 +287,7 @@ def parse_zettel_metadata(z_path):
 		if reading_links: data['links'] += find_md_links(line)
 	return data
 
-#▒▒▒▒▒▒▒▒▒▒▒▒ WRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+#▒▒▒▒▒▒▒▒▒▒▒▒ READING & WRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def write_ext(option):
 	written = ''
 	with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
@@ -296,6 +296,11 @@ def write_ext(option):
 		finally:
 			tf.seek(0); written = tf.read().decode("utf-8")
 	return written #succeeded
+
+def print_zettel_body(z_id):
+	get_body = "SELECT * FROM main WHERE id =" + str(z_id)
+	body = query_db(get_body, current_db_path)
+	print(divider); print(body[0][3]); print(divider)
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def make_new_zettel():
@@ -324,7 +329,7 @@ def make_new_zettel():
 		os.system('clear')
 		if inp == "q": break
 		try: 
-			z_links.append(increm_input_title_name()[0])
+			z_links.append(find_by_input()[0])
 			z_links = list(dict.fromkeys(z_links)) #de-duplicate links list
 			print('Selected links:', z_links)
 		except: pass
@@ -337,7 +342,7 @@ def make_new_zettel():
 		try: 
 			z_tags.append(increm_input_tags()[1])
 			z_tags = list(dict.fromkeys(z_tags)) #de-duplicate links list
-			print('Selected links:', z_tags)
+			print('Selected tags:', z_tags)
 		except: pass
 	#preview
 	print(divider)
@@ -488,7 +493,7 @@ def init_new_db():
 			conn.close()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYSIS OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def increm_input_title_name():
+def find_by_input():
 	#accessory function
 	def print_entries(entry, val):
 		z_title = entry[1]
@@ -497,9 +502,7 @@ def increm_input_title_name():
 		print_zettel_ops()
 		zettel_ops(z_id, z_title)
 	
-	name = ''
-	inp = ''
-	entities = []
+	name = ''; inp = ''; entities = []
 	while True:
 		num = 1
 		#see if we are entering the name or command
@@ -545,31 +548,45 @@ def increm_input_title_name():
 			print('no zettel found, returning to main menu')
 			print(divider)
 			return #or return nothing
-		inp = input('srarching for: ' + name + " « ")
+		inp = input('srarching for zettel: ' + name + " « ")
 		
-def increm_input_tags():
+def find_by_tag():
 	#accessory function
 	def print_entries(entry, val):
-		tag = entry[1]
-		print('selected:', str(val)+'.', tag)
+		z_title = entry[1]
+		z_id = entry[0]
+		print('selected:', str(val)+'.', z_title)
+		print_zettel_ops()
+		zettel_ops(z_id, z_title)
 	
-	name = ''
-	inp = ''
-	entities = []
+	tag = ''; inp = ''; entities = []
 	while True:
+		os.system('clear')
+		print(divider)
+		
+		get_all = "SELECT DISTINCT * FROM tags_list"
+		all_tags = query_db(get_all, current_db_path)
+		print('available tags:', all_tags)
+		print()
 		num = 1
+		
 		#see if we are entering the name or command
 		if inp != ':':
-			os.system('clear')
-			print(divider)
-			name += inp
-		#show all if no input, or find by name or title
-		if name == '':
-			get_all = "SELECT DISTINCT * FROM tags_list"
+			tag += inp
+		#show all if no input, or find by tag
+		if tag == '':
+			get_all = "SELECT * FROM main"
 			entries = query_db(get_all, current_db_path)
 		else:
-			get_by_name = "SELECT DISTINCT * FROM tags_list WHERE tag LIKE '%"+name+"%' "
-			entries = query_db(get_by_name, current_db_path)
+			entries.clear() #reset
+			get_ids = "SELECT * FROM tags WHERE tag LIKE '%"+tag+"%' "
+			tagged = query_db(get_ids, current_db_path)
+			for tagged_entry in tagged:
+				found_id = tagged_entry[1]
+				get_all_by_tag = "SELECT * FROM main WHERE id =" + str(found_id)
+				entry = query_db(get_all_by_tag, current_db_path)[0]
+				entries.append(entry)
+			
 		#search sub-menu
 		if inp == ':':
 			selected_entry = []
@@ -583,7 +600,91 @@ def increm_input_tags():
 				return entries[int(i)-1] #return the one selected from list
 			except: pass
 			finally:
-				if i == "c": name = ''; inp = '' 
+				if i == "c": tag = ''; inp = '' 
+				entries = query_db(get_all, current_db_path) 
+			os.system('clear')
+		#printing out entries
+		if len(entries) > 1:
+			for entry in entries:
+				print(str(num)+'.', entry[1])
+				num += 1
+			print(divider)
+			print('total search hits:', len(entries))
+			print_searching()
+		elif len(entries) == 1: 
+			print_entries(entries[0], '')
+			return entries[0] #return what was found by narrowing down
+		elif len(entries) == 0: 
+			print('no zettel found, returning to main menu')
+			print(divider)
+			return #or return nothing
+		inp = input('srarching by tag: ' + tag + " « ")
+		
+def list_by_tag(tag_id):
+	entries = []
+	os.system('clear')
+	print(divider)
+	
+	num = 1
+	
+	#if tag id is provided, just print them all and return
+	get_tag = "SELECT * FROM tags_list WHERE id ="+str(tag_id)
+	tag = query_db(get_tag, current_db_path)[0][1]
+	
+	get_ids = "SELECT * FROM tags WHERE tag LIKE '%"+tag+"%' "
+	tagged = query_db(get_ids, current_db_path)
+	
+	for tagged_entry in tagged:
+		found_id = tagged_entry[1]
+		get_all_by_tag = "SELECT * FROM main WHERE id =" + str(found_id)
+		entry = query_db(get_all_by_tag, current_db_path)[0]
+		entries.append(entry)
+	for entry in entries:
+		print(str(num)+'.', entry[1])
+		num += 1
+	print(divider)
+	print('zettels under tag', tag, ':', len(entries))
+		
+def increm_input_tags():
+	#accessory function
+	def print_entries(entry, val):
+		tag = entry[1]
+		tag_id = entry[0]
+		print('selected:', str(val)+'.', tag)
+		print_tag_ops()
+		tag_ops(tag_id, tag)
+		
+	tag = ''
+	inp = ''
+	entities = []
+	while True:
+		num = 1
+		#see if we are entering the name or command
+		if inp != ':':
+			os.system('clear')
+			print(divider)
+			tag += inp
+		#show all if no input, or find by name or title
+		if tag == '':
+			get_all = "SELECT DISTINCT * FROM tags_list"
+			entries = query_db(get_all, current_db_path)
+		else:
+			get_by_tag = "SELECT DISTINCT * FROM tags_list WHERE tag LIKE '%"+tag+"%' "
+			entries = query_db(get_by_tag, current_db_path)
+		#search sub-menu
+		if inp == ':':
+			selected_entry = []
+			print(divider)
+			print_search_commands()
+			i = input(" » ")
+			print()
+			print(divider)
+			try: 
+				print_entries(entries[int(i)-1], int(i))
+				return entries[int(i)-1] #return the one selected from list
+			except: pass
+			finally:
+				if i == "c": tag = ''; inp = '' 
 				entries = query_db(get_all, current_db_path) 
 			os.system('clear')
 		#printing out entries
@@ -602,7 +703,7 @@ def increm_input_tags():
 			print(divider)
 			#store in tags
 			return #or return a new tag
-		inp = input('srarching for: ' + name + " « ")
+		inp = input('srarching for tag: ' + tag + " « ")
 		
 def list_corrupt_links():
 	get_all = "SELECT * FROM invalid_links"
@@ -638,12 +739,7 @@ def list_zettels(exec_str):
 		num += 1
 	return True
 	
-#▒▒▒▒▒▒▒▒▒▒▒▒ ZETTEL OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def print_zettel_body(z_id):
-	get_body = "SELECT * FROM main WHERE id =" + str(z_id)
-	body = query_db(get_body, current_db_path)
-	print(divider); print(body[0][3]); print(divider)
-	
+#▒▒▒▒▒▒▒▒▒▒▒▒ FOUND OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def zettel_ops(z_id, z_path):
 	os.system('clear')
 	print_zettel_ops()
@@ -653,6 +749,17 @@ def zettel_ops(z_id, z_path):
 		os.system('clear')
 		if inp == "": print_zettel_body(z_id)
 		elif inp == "?": print_zettel_ops()
+		elif inp == 'q': return
+		
+def tag_ops(tag_id, tag):
+	os.system('clear')
+	print_tag_ops()
+	while True:
+		print('selected tag:', tag)
+		inp = input("TAG OPS ('?' for commands) » ").strip()
+		os.system('clear')
+		if inp == "": list_by_tag(tag_id)
+		elif inp == "?": print_tag_ops()
 		elif inp == 'q': return
 		
 #▒▒▒▒▒▒▒▒▒▒▒▒ MAIN MENU ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -711,7 +818,8 @@ def main_menu():
 		os.system('clear')
 		if inp == "": info()
 		elif inp == "n": make_new_zettel()
-		elif inp == "f": increm_input_title_name()
+		elif inp == "f": find_by_input()
+		elif inp == "ft": find_by_tag()
 		elif inp == "r": review()
 		elif inp == "tree": tree()
 		elif inp == "init": init_new_db()
@@ -729,12 +837,23 @@ def print_zettel_ops():
 	print('(q) - return to previous menu')
 	print(divider)
 	
+def print_tag_ops():
+	print(divider)
+	print('() - show zettels under this tag')
+	print('(q) - return to previous menu')
+	print(divider)
+	
 def print_search_commands():
 	print("'number' - select entry")
 	print("(c) - clear search query")
 
 def print_searching():
 	print('keep narrowing your search by entering more characters')
+	print("or enter ':' for search tools")
+	print(divider)
+	
+def print_searching():
+	print('showing all zettels related to the tag')
 	print("or enter ':' for search tools")
 	print(divider)
 	
@@ -779,6 +898,7 @@ def print_main_ops():
 	print(divider)
 	print('() - show statistics')
 	print('(f) - incrementally find zettel to enter the database')
+	print('(ft) - find zettel by tag to enter the database')
 	print('(r) - review zettels for errors in links and content')
 	print('(n) - start writing a new zettel')
 	print('(tree) - use "tree" command to show files')
