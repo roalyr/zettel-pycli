@@ -304,6 +304,21 @@ def query_db(exec_line, db_path):
 				found = c.fetchall()
 			except Error as e: print(e)
 			conn.close(); return found
+			
+def add_to_db(entry, exec_line, db_path):
+	conn = None
+	try: conn = sqlite3.connect(db_path)
+	except Error as e: print(e)
+	finally:
+		if conn:
+			try:
+				c = conn.cursor()
+				if len(entry) == 1: c.execute(exec_line, (entry[0],))
+				elif len(entry) == 2: c.execute(exec_line, (entry[0], entry[1],))
+				elif len(entry) == 3: c.execute(exec_line, (entry[0], entry[1], entry[2],))
+			except Error as e: print(e)
+			conn.commit()
+			conn.close();
 
 def import_to_db():
 	print('folders with nested sub-folders are not supported')
@@ -486,7 +501,19 @@ def make_new_zettel():
 			elif inp == "r" or inp == "p": break
 		if inp == "r": continue
 		elif inp == "p": break
-	#preview
+	#generate filename for export feature
+	path_length = 30
+	z_path = z_title
+	if len(z_path) > path_length: z_path = z_path[0:path_length]
+	z_path = z_path.strip().replace(' ', '_')
+	z_path = re.sub(r'(?u)[^-\w.]', '_', z_path) 
+	z_path += '.md'
+	
+	write_zettel(z_title, z_path, z_body)
+	#update meta
+	
+	print(divider)
+	print('Filename:',z_path)
 	print(divider)
 	print('Title:',z_title)
 	print()
@@ -497,7 +524,32 @@ def make_new_zettel():
 	print('Links:', str_from_list(sort_tags, draw_tags_in_line, z_links, 1))
 	print(divider)
 
-#▒▒▒▒▒▒▒▒▒▒▒▒ READING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+#▒▒▒▒▒▒▒▒▒▒▒▒ WRITING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def upsate_z_body(id, text):
+	set = 'UPDATE main SET z_body = ? WHERE id = ?'
+	add_to_db([text, id], set, current_db_path)
+	
+def update_z_title(id, title):
+	set = 'UPDATE main SET z_title = ? WHERE id = ?'
+	add_to_db([title, id], set, current_db_path)
+
+def write_zettel(z_title, z_path, z_body):
+	set = 'INSERT INTO main ( z_title, z_path, z_body ) VALUES ( ?, ?, ? ) '
+	add_to_db([z_title, z_path, z_body], set, current_db_path)
+
+def write_z_tags(tags):
+	set = 'INSERT INTO tags ( z_id, tag ) VALUES ( ?, ? )'
+	#incr_add_to_db(set, current_db_path)
+	
+def write_z_links(links):
+	set = 'INSERT INTO links ( z_id_from, z_path_to ) VALUES ( ?, ? )'
+	#incr_add_to_db(set, current_db_path)
+	
+def write_tags_in_list(tags):
+	set = 'INSERT OR IGNORE INTO tags_list ( tag ) VALUES ( ? )'
+	#incr_add_to_db(set, current_db_path)
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ READING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def read_z_body(z_id):
 	get = "SELECT DISTINCT * FROM main WHERE id =" + str(z_id)
 	return query_db(get, current_db_path)[0][3]
