@@ -1,9 +1,9 @@
 #▒▒▒▒▒▒▒▒▒▒▒▒ USER OPTIONS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 database_name = "my_vault" # default name for new databases
 default_editor = "nano" # enter anything that suits your preference
-sort_tags = False # if true - sorts alphabetically
+sort_tags = True # if true - sorts alphabetically
 sort_titles = False # if true - sorts alphabetically
-draw_tags_in_line = False # if false - print tags in column
+draw_tags_in_line = True # if false - print tags in column
 draw_titles_in_line = False # if false - print titles in column
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CREDITS & LICENCE ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -578,7 +578,7 @@ def search_tags():
 			inp = input("Search for more? 'q' to stop and return » ")
 			if inp == 'q': break
 	entries = list(dict.fromkeys(entries)) #dedup
-	list_selected_zettels(entries)
+	list_selected_tags(entries)
 	return entries
 	
 def print_found_zettels(entry, val):
@@ -762,6 +762,10 @@ def list_all_tags():
 def list_selected_zettels(entries):
 	strn = str_from_list(sort_titles, draw_titles_in_line, entries, 1)
 	print('viewed / selected zettels:'); print(strn); print(divider)
+	
+def list_selected_tags(entries):
+	strn = str_from_list(sort_tags, draw_tags_in_line, entries, 1)
+	print('viewed / selected tags:'); print(strn); print(divider)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ SUB-MENU OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def zettel_ops(z_id, z_path):
@@ -775,7 +779,7 @@ def zettel_ops(z_id, z_path):
 		elif inp == 'q': return
 		
 def tag_ops(tag_id, tag):
-	os.system('clear')
+	os.system('clear'); list_by_tag(tag_id)
 	#print_tag_ops()
 	while True:
 		print('selected tag:', tag)
