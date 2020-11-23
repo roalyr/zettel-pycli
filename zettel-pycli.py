@@ -67,12 +67,12 @@ create_main_table = '''
 create_links_table = '''
 	CREATE TABLE IF NOT EXISTS links (
 		id integer PRIMARY KEY,
-		z_id_from integer NOT NULL, z_path_to integer NOT NULL
+		z_id_from integer NOT NULL, z_id_to integer NOT NULL
 	); '''
 create_invalid_links_table = '''
 	CREATE TABLE IF NOT EXISTS invalid_links (
 		id integer PRIMARY KEY,
-		z_id_from integer NOT NULL, z_path_to text NOT NULL
+		z_id_from integer NOT NULL, link_name text NOT NULL
 	); '''
 create_no_links_table = '''
 	CREATE TABLE IF NOT EXISTS no_links (
@@ -100,8 +100,8 @@ create_taglist_table = '''
 	); '''
 
 insert_main = '''INSERT INTO main ( z_title, z_path, z_body ) VALUES ( ?, ?, ? ) '''
-insert_links = '''INSERT INTO links ( z_id_from, z_path_to ) VALUES ( ?, ? ) '''
-insert_invalid_links = '''INSERT INTO invalid_links ( z_id_from, z_path_to ) VALUES ( ?, ? ) '''
+insert_links = '''INSERT INTO links ( z_id_from, z_id_to ) VALUES ( ?, ? ) '''
+insert_invalid_links = '''INSERT INTO invalid_links ( z_id_from, link_name ) VALUES ( ?, ? ) '''
 insert_self_links = '''INSERT INTO self_links ( z_id_from ) VALUES ( ? ) '''
 insert_no_links = '''INSERT INTO no_links ( z_id_from ) VALUES ( ? ) '''
 insert_no_bodies = '''INSERT INTO no_bodies ( z_id_from ) VALUES ( ? ) '''
@@ -117,7 +117,7 @@ insert_meta = '''
 update_z_body = 'UPDATE main SET z_body = ? WHERE id = ?'
 update_z_title = 'UPDATE main SET z_title = ? WHERE id = ?'
 
-from_main_id = "SELECT DISTINCT * FROM main WHERE id = ?"
+from_main_id = "SELECT * FROM main WHERE id = ?"
 from_main_all = "SELECT * FROM main"
 from_main_z_title_like = "SELECT * FROM main WHERE z_title LIKE ? "
 from_main_z_body_like = "SELECT * FROM main WHERE z_body LIKE ? "
@@ -128,11 +128,15 @@ from_no_links_all = "SELECT * FROM no_links"
 from_no_bodies_all = "SELECT * FROM no_bodies"
 from_no_titles_all = "SELECT * FROM no_titles"
 
-from_taglist_id = "SELECT DISTINCT * FROM taglist WHERE id = ?"
+from_taglist_id = "SELECT * FROM taglist WHERE id = ?"
 from_taglist_all = "SELECT * FROM taglist"
-from_taglist_tag_like = "SELECT DISTINCT * FROM taglist WHERE tag LIKE ? "
+from_taglist_tag_like = "SELECT * FROM taglist WHERE tag LIKE ? "
 
+from_tags_z_id = "SELECT * FROM tags WHERE z_id = ?"
 from_tags_tag_like = "SELECT * FROM tags WHERE tag LIKE ? "
+
+from_links_z_id_from = "SELECT * FROM links WHERE z_id_from = ?"
+from_links_z_id_to = "SELECT * FROM links WHERE z_id_to = ?"
 
 d_line = '-------------------------------------------------------'
 lorem = '''Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
@@ -432,9 +436,9 @@ def import_to_db():
 						c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (z_path,))
 						current_zettel_id = c.fetchall()[0][0]
 						#see if links point out to existing nodes
-						for z_path_to in links:
+						for link_name in links:
 							#destination zettel
-							c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (z_path_to,))
+							c.execute("SELECT DISTINCT * FROM main WHERE z_path=?", (link_name,))
 							found_zettel = c.fetchall()
 							if found_zettel:
 								valid_zettel_id = found_zettel[0][0]
@@ -445,7 +449,7 @@ def import_to_db():
 									c.execute(insert_self_links, (current_zettel_id,))
 									tot_self_links += 1
 							else:
-								c.execute(insert_invalid_links, (current_zettel_id, z_path_to,))
+								c.execute(insert_invalid_links, (current_zettel_id, link_name,))
 								tot_invalid_links += 1
 						if links == []:
 							c.execute(insert_no_links, (current_zettel_id,))
@@ -608,25 +612,17 @@ def write_z_links(z_id, links):
 	incr_add_to_db(entry_list, insert_links, current_db_path)
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ READING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def read_z_body(z_id):
-	return query_db(z_id, from_main_id, current_db_path)[0][3]
-
-def read_z_title(z_id):
-	return query_db(z_id, from_main_id, current_db_path)[0][1]
+def read_z_body(z_id): return query_db(z_id, from_main_id, current_db_path)[0][3]
+def read_z_title(z_id): return query_db(z_id, from_main_id, current_db_path)[0][1]
 	
-def read_z_tags(z_id): #placeholder
-	get = "SELECT DISTINCT * FROM main WHERE id = ?"
-	return query_db(z_id, get, current_db_path)[0][1]
-	
-def read_z_links(z_id): #placeholder
-	get = "SELECT DISTINCT * FROM main WHERE id = ?"
-	return query_db(z_id, get, current_db_path)[0][1]
+def read_z_tags(z_id): return query_db(z_id, from_tags_z_id, current_db_path)
+def read_z_links_from(z_id): return query_db(z_id, from_links_z_id_from, current_db_path)
 
 def read_whole_zettel(z_id):
 	return marker_title + '\n' + read_z_title(z_id) + '\n\n' \
 	+ marker_body+ '\n' + read_z_body(z_id) + '\n\n' \
-	+ marker_tags+ '\n' + read_z_tags(z_id) + '\n\n' \
-	+ marker_links+ '\n' + read_z_links(z_id)
+	+ marker_tags+ '\n' + str(read_z_tags(z_id)) + '\n\n' \
+	+ marker_links+ '\n' + str(read_z_links_from(z_id))
 
 def read_invalid_links_all(): return query_db(None, from_invalid_links_all, current_db_path)
 
