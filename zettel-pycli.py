@@ -114,11 +114,9 @@ insert_meta = '''
 		tot_no_links, tot_self_links, tot_no_bodies, tot_no_titles
 	) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ? ) ''' #add tags num
 	
-#Just fancy stuff
-banner_log	  = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ LOG ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
-banner_commit   = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ COMMITTING ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
-banner_revert   = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ REVERTING ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
-banner_hreset   = '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ HARD RESETTING ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'
+update_z_body = 'UPDATE main SET z_body = ? WHERE id = ?'
+update_z_title = 'UPDATE main SET z_title = ? WHERE id = ?'
+	
 d_line = '-------------------------------------------------------'
 lorem = '''Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
 Phasellus mollis vulputate lobortis. Etiam auctor, massa in pulvinar 
@@ -132,58 +130,57 @@ ligula. Praesent lectus orci, tincidunt convallis turpis sit amet, dapibus
 iaculis nisi. Integer quis gravida erat. '''
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ GIT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-git_log = "git log --branches --oneline -n 20"
-git_log_1 = "git log --branches --oneline -n 1"
-git_status = "git status"
-git_add = "git add . && git status --short"
-git_push = "git push --all"
+def git_info():
+	print('Current head:');
+	os.system("git log --branches --oneline -n 1")
+	
+def git_status():
+	os.system("git status")
+	
+def git_log_f(): 
+	os.system("git log --branches --oneline -n 20"); 
+	
+def git_add():
+	os.system("git add . ")
+	os.system("git status --short")
+	
+def git_launch_gitui():
+	os.system('gitui')
 
-def git_log_f(): print(banner_log); os.system(git_log); print(banner_log)
+def git_push():
+	os.system("git push --all")
 
 def git_commit_f():
-	print(banner_commit); print('Files added:'); os.system(git_add)
-	print('Current head:'); os.system(git_log_1); print(banner_commit)
+	print('Files added:'); 
+	git_add(); git_info()
 	commit_name = c_prompt("commit name (' ' to abort)")
-	if commit_name =="": return
+	if commit_name =='': return
 	inp = c_prompt("really? ('yes' to proceed)")
-	if inp == "yes":
-		git_commit = "git commit -m "+commit_name
-		os.system(git_commit)
+	if inp == "yes": os.system("git commit -m "+ commit_name)
 	
 def git_revert_f():
-	print(banner_revert); print('Commits:'); os.system(git_log); print(banner_revert)
+	print('Commits:');
+	git_log_f()
 	commit_name = c_prompt("commit name to revert (' ' to abort)")
-	if commit_name =="": return
-	git_revert = "git revert "+ commit_name; os.system(git_revert)
+	if commit_name =='': return
+	os.system("git revert "+ commit_name)
 	
 def git_reset_hard_f():
-	print(banner_hreset); print('Commits:'); os.system(git_log); print(banner_hreset)
+	print('Commits:');
+	git_log_f()
 	commit_name = c_prompt("commit name to reset (' ' to abort)")
-	if commit_name =="": return
+	if commit_name =='': return
 	inp = c_prompt("really? ('yes' to proceed)")
-	if inp == "yes":
-		git_reset_hard = "git reset --hard "+commit_name
-		os.system(git_reset_hard)
-	
-#Begin
-def git_menu():
-	print_git_ops()
-	while True:
-		inp = c_prompt('GIT')
-		print_git_ops()
-		if inp == "": print('Current head:'); os.system(git_log_1)
-		elif inp == "l": git_log_f()
-		elif inp == "s": os.system(git_status)
-		elif inp == "a": os.system(git_add)
-		elif inp == "c": git_commit_f()
-		elif inp == "p": os.system(git_push)
-		elif inp == "r": git_revert_f()
-		elif inp == "ha": git_reset_hard_f()
-		elif inp == "?": print_git_ops()
-		elif inp == "u": os.system('gitui')
-		elif inp == "q": break
+	if inp == "yes": os.system("git reset --hard "+ commit_name)
 
-#▒▒▒▒▒▒▒▒▒▒▒▒ FILE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+#▒▒▒▒▒▒▒▒▒▒▒▒ FILE & TEST OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def make_template():
+	gen_template();
+	print('generated a non-indexed template zettel:', zettel_template_name)
+	
+def make_test_zettels():
+	if make_test_batch(): print_made_tests()
+
 def gen_template():
 	f = open(path + "/" + zettel_template_name, "w")
 	f.write(zettel_template)
@@ -292,6 +289,10 @@ def parse_zettel_metadata(z_path):
 	return data
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def import_zettels():
+	#str?
+	import_to_db();
+	
 def query_db(exec_line, db_path):
 	found = []; conn = None
 	try: conn = sqlite3.connect(db_path)
@@ -466,7 +467,7 @@ def init_new_db():
 				print_db_meta(database_name)
 			except Error as e: print(e)
 			conn.close()
-			
+
 #▒▒▒▒▒▒▒▒▒▒▒▒ WRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def write_ext(option):
 	written = ''
@@ -561,41 +562,31 @@ def make_new_tag():
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ WRITING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def upsate_z_body(id, text):
-	set = 'UPDATE main SET z_body = ? WHERE id = ?'
-	add_to_db([text, id], set, current_db_path)
+	add_to_db([text, id], update_z_body, current_db_path)
 	
 def update_z_title(id, title):
-	set = 'UPDATE main SET z_title = ? WHERE id = ?'
-	add_to_db([title, id], set, current_db_path)
+	add_to_db([title, id], update_z_title, current_db_path)
 
 def write_zettel(z_title, z_path, z_body):
-	set = 'INSERT INTO main ( z_title, z_path, z_body ) VALUES ( ?, ?, ? ) '
-	z_id = add_to_db([z_title, z_path, z_body], set, current_db_path)
+	z_id = add_to_db([z_title, z_path, z_body], insert_main, current_db_path)
 	return z_id #regurns only last id
 
 def write_z_tags(z_id, tags):
-	set = 'INSERT INTO tags ( z_id, tag ) VALUES ( ?, ? )'
 	entry_list = []
 	for tag in tags: #swap tag ID with z_id
 		entry_list.append((z_id, tag[1]))
-	incr_add_to_db(entry_list, set, current_db_path)
+	incr_add_to_db(entry_list, insert_tags, current_db_path)
 
 def write_tags_to_list(tags):
-	set = '''INSERT OR IGNORE INTO tags_list ( tag ) VALUES ( ? ) '''
-	t_id = incr_add_to_db(tags, set, current_db_path)
+	t_id = incr_add_to_db(tags, insert_tags_list, current_db_path)
 	return t_id #regurns only last id
 	
 def write_z_links(z_id, links):
-	set = 'INSERT INTO links ( z_id_from, z_path_to ) VALUES ( ?, ? )'
 	entry_list = []
 	for link in links: #swap tag ID with z_id
 		entry_list.append((z_id, link[0]))
-	incr_add_to_db(entry_list, set, current_db_path)
+	incr_add_to_db(entry_list, insert_links, current_db_path)
 	
-def write_tags_in_list(tags):
-	set = 'INSERT OR IGNORE INTO tags_list ( tag ) VALUES ( ? )'
-	#incr_add_to_db(set, current_db_path)
-
 #▒▒▒▒▒▒▒▒▒▒▒▒ READING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def read_z_body(z_id):
 	get = "SELECT DISTINCT * FROM main WHERE id =" + str(z_id)
@@ -866,7 +857,43 @@ def list_selected_tags(entries):
 	strn = str_from_list(sort_tags, draw_tags_in_line, entries, 1)
 	print('viewed / selected tags:'); print(strn);
 
-#▒▒▒▒▒▒▒▒▒▒▒▒ SUB-MENU OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+#▒▒▒▒▒▒▒▒▒▒▒▒ ANALYZE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def info():
+	if os.path.isfile(current_db_path):
+		print_db_meta(current_db_path)
+	else: print_no_db()
+	
+def tree():
+	#str
+	os.system('tree'+' '+path)
+	
+def review():
+	print_start_check(); errors = False
+	if not os.path.isfile(current_db_path): print_no_db(); return
+	if list_zettels("SELECT * FROM titleless"): print_no_titles(); errors = True
+	if list_zettels("SELECT * FROM empties"): print_no_text(); errors = True
+	if list_zettels("SELECT * FROM no_links"): print_no_links(); errors = True
+	if list_zettels("SELECT * FROM self_links"): print_self_links(); errors = True
+	if list_corrupt_links(): print_corrupt_links(); errors = True
+	if not errors: print_check_passed()
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ MENU OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def git_menu():
+	print_git_ops()
+	while True:
+		inp = c_prompt('GIT')
+		print_git_ops()
+		if inp == "": git_info()
+		elif inp == "l": git_log_f()
+		elif inp == "s": git_status()
+		elif inp == "a": git_add()
+		elif inp == "c": git_commit_f()
+		elif inp == "p": git_push()
+		elif inp == "r": git_revert_f()
+		elif inp == "ha": git_reset_hard_f()
+		elif inp == "u": git_launch_gitui()
+		elif inp == "q": break
+		
 def zettel_ops(z_id, z_path):
 	print_zettel_ops()
 	while True:
@@ -880,41 +907,7 @@ def tag_ops(tag_id, tag):
 		inp = c_prompt('TAG')
 		zettel_entries = list_by_tag(tag_id); print_tag_ops()
 		if inp == 'q': return
-		
-#▒▒▒▒▒▒▒▒▒▒▒▒ MAIN MENU ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def import_zettels():
-	#str?
-	import_to_db();
-	
-def info():
-	
-	if os.path.isfile(current_db_path):
-		print_db_meta(current_db_path)
-	else: print_no_db()
-	
-def tree():
-	#str
-	os.system('tree'+' '+path)
-	
-	
-def make_template():
-	gen_template();
-	print('generated a non-indexed template zettel:', zettel_template_name)
-	
-def review():
-	print_start_check(); errors = False
-	if not os.path.isfile(current_db_path): print_no_db(); return
-	if list_zettels("SELECT * FROM titleless"): print_no_titles(); errors = True
-	if list_zettels("SELECT * FROM empties"): print_no_text(); errors = True
-	if list_zettels("SELECT * FROM no_links"): print_no_links(); errors = True
-	if list_zettels("SELECT * FROM self_links"): print_self_links(); errors = True
-	if list_corrupt_links(): print_corrupt_links(); errors = True
-	if not errors: print_check_passed()
-		
-	
-def make_test_zettels():
-	if make_test_batch(): print_made_tests()
-	
+
 def main_menu():
 	print_main_ops()
 	while True:
@@ -933,7 +926,7 @@ def main_menu():
 		elif inp == "git": git_menu(); print_main_ops()
 		elif inp == "q": quit()
 
-#▒▒▒▒▒▒▒▒▒▒▒▒ FRESH PRINT ▒▒▒▒▒▒▒▒▒▒▒▒▒
+#▒▒▒▒▒▒▒▒▒▒▒▒ PRINT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 #DB ERROR CHECK
 def print_start_check():
 	cl_divider()
