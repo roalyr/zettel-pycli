@@ -949,47 +949,48 @@ def main_menu():
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CLEARING PRINT ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def print_db_exists():
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print('a database like this already exists, aborting')
 	
 def print_made_tests():
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print('generated a number of test zettels')
 	print("don't forget to import them into the database")
 	
 def print_test_failed():
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print('make sure you enter numbers')
 
 def print_test_warn():
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print('make sure you have backed up your journal folder')
 	print('this will generate a batch of zettel .md cards in it')
 	print('you will have to import them back into a database')
 
 def print_links_select():
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print('select zettels that you want to LINK to')
 	
 def print_tags_select():
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print('select TAGS which you want to attach to zettel')
 	print('if there is no desired tag, you may register it')
 
 def print_tags_select():
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print('select a suitable TAG for your zettel')
 	print('you can either search for existing tag')
 	print('or write a new one if no suitable found')
 
 def print_no_db():
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print('no database matching the name provided in this script')
 	print('check the name in the script header, or import or')
 	print('initiate the database via respective commands')
 
 def print_main_ops():
-	os.system('clear'); print(divider)
+	cl(); print(divider); 
+	
 	print('(i) - show statistics')
 	print('(z) - find zettel by name to enter the database')
 	print('(t) - browse tags in the database')
@@ -1004,7 +1005,7 @@ def print_main_ops():
 	print('(q) - quit')
 
 def print_git_ops():
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print('() - current')
 	print('(l) - log')
 	print('(s) - status')
@@ -1017,7 +1018,7 @@ def print_git_ops():
 	print('(q) - quit to main')
 
 def print_writer_options():
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print('to use any of provided external editors,')
 	print('make sure they are installed\n')
 	print('() - write with user-defined editor (see script header)')
@@ -1026,7 +1027,7 @@ def print_writer_options():
 	print('(n) - write using nano')
 	
 def print_how_to_search_zettel():
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print('how do you want to find a zettel?')
 	print(divider)
 	print('(n) - by zettel name (title)')
@@ -1079,7 +1080,7 @@ def print_tag_ops():
 #▒▒▒▒▒▒▒▒▒▒▒▒ OTHER PRINTING ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def print_db_meta(db_path):
 	try:
-		os.system('clear'); print(divider)
+		cl(); print(divider)
 		meta = query_db("SELECT * FROM meta", db_path)
 		print('database name:', meta[0][1])
 		print('created:', meta[0][2])
@@ -1097,13 +1098,15 @@ def print_db_meta(db_path):
 		print("couldn't find metadata table on:", db_path)
 
 def print_whole_zettel(z_id):
-	os.system('clear'); print(divider)
+	cl(); print(divider)
 	print(read_whole_zettel(z_id))
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ PROMPTS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def command_prompt(): return ' » '
 def string_input_prompt(): return ' « '
 
+def cl(): os.system('cls' if os.name == 'nt' else 'clear')
+	
 #▒▒▒▒▒▒▒▒▒▒▒▒ START ▒▒▒▒▒▒▒▒▒▒▒▒▒
 main_menu()
 
