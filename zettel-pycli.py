@@ -107,7 +107,7 @@ insert_self_links = '''INSERT INTO self_links ( z_id_from ) VALUES ( ? ) '''
 insert_empties = '''INSERT INTO empties ( z_id_from ) VALUES ( ? ) '''
 insert_titleless = '''INSERT INTO titleless ( z_id_from ) VALUES ( ? ) '''
 insert_tags = '''INSERT INTO tags ( z_id, tag ) VALUES ( ?, ? ) '''
-insert_tags_list = '''INSERT OR IGNORE INTO tags_list ( tag ) VALUES ( ? ) ''' #if not n table
+insert_tags_list = '''INSERT OR IGNORE INTO tags_list ( tag ) VALUES ( ? ) ''' 
 insert_meta = '''
 	INSERT INTO meta (
 		db_name, datetime, tot_zettels, tot_links, tot_invalid_links,
@@ -167,10 +167,10 @@ def git_reset_hard_f():
 	
 #Begin
 def git_menu():
-	os.system('clear'); print_git_ops()
+	print_git_ops()
 	while True:
 		inp = input("GIT MENU ('?' for commands) » ").strip()
-		os.system('clear')
+		print_git_ops()
 		if inp == "": print('Current head:'); os.system(git_log_1)
 		elif inp == "l": git_log_f()
 		elif inp == "s": os.system(git_status)
@@ -306,7 +306,7 @@ def query_db(exec_line, db_path):
 			conn.close(); return found
 			
 def add_to_db(entry, exec_line, db_path):
-	conn = None
+	conn = None; id = None
 	try: conn = sqlite3.connect(db_path)
 	except Error as e: print(e)
 	finally:
@@ -316,9 +316,37 @@ def add_to_db(entry, exec_line, db_path):
 				if len(entry) == 1: c.execute(exec_line, (entry[0],))
 				elif len(entry) == 2: c.execute(exec_line, (entry[0], entry[1],))
 				elif len(entry) == 3: c.execute(exec_line, (entry[0], entry[1], entry[2],))
+				else: 
+					print('Attempted to write', len(entry), 'fields, which is not supported')
+					print('The SQLite command is:', exec_line)
+					quit()
 			except Error as e: print(e)
 			conn.commit()
+			id = c.lastrowid
 			conn.close();
+			return id
+			
+def incr_add_to_db(entry_list, exec_line, db_path):
+	conn = None; id = None
+	try: conn = sqlite3.connect(db_path)
+	except Error as e: print(e)
+	finally:
+		if conn:
+			try:
+				c = conn.cursor()
+				for entry in entry_list:
+					if len(entry) == 1: c.execute(exec_line, (entry[0],))
+					elif len(entry) == 2: c.execute(exec_line, (entry[0], entry[1],))
+					elif len(entry) == 3: c.execute(exec_line, (entry[0], entry[1], entry[2],))
+					else: 
+						print('Attempted to write', len(entry), 'fields, which is not supported')
+						print('The SQLite command is:', exec_line)
+						quit()
+			except Error as e: print(e)
+			conn.commit()
+			id = c.lastrowid
+			conn.close();
+			return id
 
 def import_to_db():
 	print('folders with nested sub-folders are not supported')
@@ -409,7 +437,6 @@ def import_to_db():
 				conn.commit()
 				time_end = time.time()
 				print('database rebuilt in:', time_end - time_start, 's')
-				print(divider)
 				print_db_meta(db_name_imported)
 				print(divider)
 				print('to use the database rename it to match:', database_name+'.db')
@@ -418,11 +445,7 @@ def import_to_db():
 			
 def init_new_db():
 	#check and abort
-	if os.path.isfile(current_db_path):
-		print(divider)
-		print('a database like this already exists, aborting')
-		print(divider)
-		return
+	if os.path.isfile(current_db_path): print_db_exists(); return
 	dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
 	conn = None
 	try: conn = sqlite3.connect(current_db_path)
@@ -457,14 +480,10 @@ def write_ext(option):
 def make_new_zettel():
 	z_title = ''
 	z_body = ''
-	
-	os.system('clear')
-	print(divider)
 	while z_title == '': z_title = input("enter zettel title » ").strip()
 	while z_body == '':
 		print_writer_options()
 		inp = input("Select editor » ").strip()
-		os.system('clear')
 		if inp == '': z_body = write_ext(default_editor)
 		elif inp == 'v': z_body = write_ext('vim')
 		elif inp == 'n': z_body = write_ext('nano')
@@ -474,12 +493,12 @@ def make_new_zettel():
 	#links
 	while True:
 		z_links = [] 
-		os.system('clear')
+		
 		print_links_select()
 		while True: #guard
 			print_writing_links()
 			inp = input("Review your links » ").strip()
-			os.system('clear')
+			
 			if inp == '': 
 				try: z_links += search_zettels()
 				except: pass
@@ -489,12 +508,12 @@ def make_new_zettel():
 	#tags
 	while True:
 		z_tags = [] 
-		os.system('clear')
+		
 		print_tags_select()
 		while True: #guard
 			print_writing_tags()
 			inp = input("Review your tags » ").strip()
-			os.system('clear')
+			
 			if inp == '': 
 				try: z_tags += search_tags()
 				except: pass
@@ -508,12 +527,14 @@ def make_new_zettel():
 	z_path = z_path.strip().replace(' ', '_')
 	z_path = re.sub(r'(?u)[^-\w.]', '_', z_path) 
 	z_path += '.md'
-	
-	write_zettel(z_title, z_path, z_body)
+	z_id = write_zettel(z_title, z_path, z_body)
+	write_z_tags(z_id, z_tags)
+	write_z_links(z_id, z_links)
 	#update meta
 	
 	print(divider)
 	print('Filename:',z_path)
+	print('Zettel id:',z_id)
 	print(divider)
 	print('Title:',z_title)
 	print()
@@ -522,7 +543,21 @@ def make_new_zettel():
 	print('Tags:', str_from_list(sort_tags, draw_tags_in_line, z_tags, 1))
 	print()
 	print('Links:', str_from_list(sort_tags, draw_tags_in_line, z_links, 1))
+	print('Links ids:', str_from_list(sort_tags, draw_tags_in_line, z_links, 0))
 	print(divider)
+
+def make_new_tag():
+	
+	tag = ''; conf = ''
+	while tag =='':
+		tag = input('Write a new tag » ')
+	while conf =='':
+		
+		print('New tag:', tag)
+		conf = input("Is it correct? ('p' to proceed) » ")
+	
+	t_id = write_tags_to_list([(tag,)])
+	return (t_id, tag)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ WRITING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def upsate_z_body(id, text):
@@ -535,15 +570,27 @@ def update_z_title(id, title):
 
 def write_zettel(z_title, z_path, z_body):
 	set = 'INSERT INTO main ( z_title, z_path, z_body ) VALUES ( ?, ?, ? ) '
-	add_to_db([z_title, z_path, z_body], set, current_db_path)
+	z_id = add_to_db([z_title, z_path, z_body], set, current_db_path)
+	return z_id #regurns only last id
 
-def write_z_tags(tags):
+def write_z_tags(z_id, tags):
 	set = 'INSERT INTO tags ( z_id, tag ) VALUES ( ?, ? )'
-	#incr_add_to_db(set, current_db_path)
+	entry_list = []
+	for tag in tags: #swap tag ID with z_id
+		entry_list.append((z_id, tag[1]))
+	incr_add_to_db(entry_list, set, current_db_path)
+
+def write_tags_to_list(tags):
+	set = '''INSERT OR IGNORE INTO tags_list ( tag ) VALUES ( ? ) '''
+	t_id = incr_add_to_db(tags, set, current_db_path)
+	return t_id #regurns only last id
 	
-def write_z_links(links):
+def write_z_links(z_id, links):
 	set = 'INSERT INTO links ( z_id_from, z_path_to ) VALUES ( ?, ? )'
-	#incr_add_to_db(set, current_db_path)
+	entry_list = []
+	for link in links: #swap tag ID with z_id
+		entry_list.append((z_id, link[0]))
+	incr_add_to_db(entry_list, set, current_db_path)
 	
 def write_tags_in_list(tags):
 	set = 'INSERT OR IGNORE INTO tags_list ( tag ) VALUES ( ? )'
@@ -558,11 +605,11 @@ def read_z_title(z_id):
 	get = "SELECT DISTINCT * FROM main WHERE id =" + str(z_id)
 	return query_db(get, current_db_path)[0][1]
 	
-def read_z_tags(z_id):
+def read_z_tags(z_id): #placeholder
 	get = "SELECT DISTINCT * FROM main WHERE id =" + str(z_id)
 	return query_db(get, current_db_path)[0][1]
 	
-def read_z_links(z_id):
+def read_z_links(z_id): #placeholder
 	get = "SELECT DISTINCT * FROM main WHERE id =" + str(z_id)
 	return query_db(get, current_db_path)[0][1]
 
@@ -576,8 +623,16 @@ def read_tags_list_table():
 	get = "SELECT DISTINCT * FROM tags_list"
 	return query_db(get, current_db_path)
 	
+def read_invalid_links_table():
+	get = "SELECT * FROM invalid_links"
+	return query_db(get, current_db_path)
+	
 def read_tags_list_table_by_tags_like(name):
 	get = "SELECT DISTINCT * FROM tags_list WHERE tag LIKE '%"+name+"%' "
+	return query_db(get, current_db_path)
+	
+def read_tags_list_table_by_id(id):
+	get = "SELECT DISTINCT * FROM tags_list WHERE id ="+str(id)
 	return query_db(get, current_db_path)
 
 def read_tags_table_by_tags_like(name):
@@ -600,9 +655,8 @@ def read_main_table_by_id(id):
 def search_zettels():
 	flag = ''
 	while True:
-		print('(n) - by zettel name (title)')
-		print('(t) - by tag')
-		inp = input("How to search? ('q' to return) » ")
+		print_how_to_search_zettel()
+		inp = input("Select an option » ")
 		if inp == 'n': flag = 'name'; break
 		if inp == 't': flag = 'tag'; break
 		if inp == 'q': return
@@ -610,7 +664,7 @@ def search_zettels():
 	while True:
 		s = find_zettel(flag)
 		if s['found'] or s['stop']: 
-			os.system('clear')
+			
 			if s['found']: entries.append(s['found'])
 			if s['stop']: break
 			inp = input("Search for more? 'q' to stop and return » ")
@@ -624,7 +678,7 @@ def search_tags():
 	while True:
 		s = find_tags()
 		if s['found'] or s['stop']: 
-			os.system('clear')
+			
 			if s['found']: entries.append(s['found'])
 			if s['stop']: break
 			inp = input("Search for more? 'q' to stop and return » ")
@@ -674,34 +728,35 @@ def print_many_tags_or_return(entries):
 		return entries[0] #return what was found by narrowing down
 
 def zettel_sub_menu(s):
-	print_search_commands()
-	i = input(" » "); print(divider)
+	print_search_zettel_commands()
+	inp = input(" » "); print(divider)
 	try: 
-		print_found_zettels(s['entries'][int(i)-1], int(i))
-		s['found'] = s['entries'][int(i)-1]
+		print_found_zettels(s['entries'][int(inp)-1], int(inp))
+		s['found'] = s['entries'][int(inp)-1]
 	except: pass
 	finally:
-		if i == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_main_table() #reset
-		if i == "q": s['stop'] = True
+		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_main_table() #reset
+		if inp == "q": s['stop'] = True
 	return s
 	
 def tag_sub_menu(s):
-	print_search_commands()
-	i = input(" » "); print(divider)
+	print_search_tag_commands()
+	inp = input(" » "); print(divider)
 	try: 
-		print_found_tags(s['entries'][int(i)-1], int(i))
-		s['found'] = s['entries'][int(i)-1]
+		print_found_tags(s['entries'][int(inp)-1], int(inp))
+		s['found'] = s['entries'][int(inp)-1]
 	except: pass
 	finally:
-		if i == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_tags_list_table() #reset
-		if i == "q": s['stop'] = True
+		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_tags_list_table() #reset
+		elif inp == "q": s['stop'] = True
+		elif inp == "n": s['found'] = make_new_tag()
 	return s
 
 def find_zettel(flag):
 	s = {'found': None, 'name': '', 'inp': '', 'entries': [], 'stop': False}
 	s['entries'] = read_main_table()
 	while True:
-		os.system('clear'); print(divider); 
+		
 		if s['inp'] != ':': s['name'] += s['inp']
 		if flag == 'tag': list_all_tags()
 		if flag == 'name': s['entries'] = read_main_table_by_titles_like(s['name'])
@@ -718,7 +773,7 @@ def find_zettel(flag):
 		s['found'] = print_many_zettels_or_return(s['entries'])
 		if s['inp'] == ':': 
 			s = zettel_sub_menu(s); 
-			os.system('clear'); print(divider);
+			
 			if not s['stop']:
 				if flag == 'tag': list_all_tags()
 				print_many_zettels_or_return(s['entries']); 
@@ -729,14 +784,14 @@ def find_tags():
 	s = {'found': None, 'name': '', 'inp': '', 'entries': [], 'stop': False}
 	s['entries'] = read_tags_list_table()
 	while True:
-		os.system('clear'); print(divider); 
+		
 		if s['inp'] != ':': s['name'] += s['inp']
 		s['entries'] = read_tags_list_table_by_tags_like(s['name'])
 		#else: s['entries'] = read_tags_list_table() #or show all
 		s['found'] = print_many_tags_or_return(s['entries'])
 		if s['inp'] == ':': 
 			s = tag_sub_menu(s); 
-			os.system('clear'); print(divider);
+			
 			if not s['stop']:
 				print_many_tags_or_return(s['entries']); 
 		if s['found'] or s['stop']: return s
@@ -744,56 +799,48 @@ def find_tags():
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ LIST OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def list_by_tag(tag_id):
-	entries = []
-	os.system('clear'); print(divider)
+	list_names = []; list_zettel_entries = []
 	num = 1
-	#get the tag name
-	get_tag = "SELECT * FROM tags_list WHERE id ="+str(tag_id)
-	tag = query_db(get_tag, current_db_path)[0][1]
-	#find zettels under this tag name
-	get_ids = "SELECT * FROM tags WHERE tag LIKE '%"+tag+"%' "
-	tagged = query_db(get_ids, current_db_path)
-	for tagged_entry in tagged:
+	tag_entries = read_tags_list_table_by_id(tag_id)
+	tag = tag_entries[0][1]
+	tagged_entries = read_tags_table_by_tags_like(tag)
+	for tagged_entry in tagged_entries:
 		found_id = tagged_entry[1]
-		get_all_by_tag = "SELECT * FROM main WHERE id =" + str(found_id)
-		entry = query_db(get_all_by_tag, current_db_path)[0]
-		entries.append(entry)
-	for entry in entries:
-		print(str(num)+'.', entry[1])
+		zettel_entries = read_main_table_by_id(found_id)
+		list_zettel_entries.append(zettel_entries[0]) #read always returns a list
+		z_title = zettel_entries[0][1]
+		list_names.append(z_title)
+	for entry in list_names:
+		print(str(num)+'.', entry)
 		num += 1
-	print(divider); print('zettels under tag', tag, ':', len(entries))
+	print(divider); print('zettels under tag:', tag, '-', len(list_names))
+	return list_zettel_entries
 
 def list_corrupt_links():
-	get_all = "SELECT * FROM invalid_links"
-	entries = query_db(get_all, current_db_path)
+	entries = read_invalid_links_table()
 	if entries == []: return False
-	same_file = False
-	name_previous = ''
-	num = 0
+	same_zettel = False; name_previous = ''; num = 1
 	for entry in entries:
-		get_file_name = "SELECT * FROM main WHERE id =" + str(entry[1])
-		name = query_db(get_file_name, current_db_path)[0][2]
-		if name == name_previous: same_file = True
-		if same_file:
-			print('   └─', entry[2])
-			same_file = False
+		z_id = entry[0]; z_title = read_z_title(z_id); invalid_link_name = entry[2]
+		if z_title == name_previous: same_zettel = True
+		if same_zettel:
+			print('   └─', invalid_link_name)
+			same_zettel = False
 		else:
 			print()
-			print(str(num)+'.', 'file:', name)
+			print(str(num)+'.', 'id:', str(z_id) + ',', z_title)
 			print('   corrupt links:')
-			print('   └─', entry[2])
+			print('   └─', invalid_link_name)
 			num += 1
-		name_previous = name
+		name_previous = z_title
 	return True
 		
-def list_zettels(exec_str):
-	entries = query_db(exec_str, current_db_path)
-	if entries == []: return False
-	num = 0
+def list_zettels(exec_str): #for other errors
+	entries = query_db(exec_str, current_db_path); num = 1
+	if entries == []: return False;
 	for entry in entries:
-		get_file_name = "SELECT * FROM main WHERE id =" + str(entry[1])
-		name = query_db(get_file_name, current_db_path)[0][2]
-		print(str(num)+'.', 'file:', name)
+		z_id = entry[1]; z_title = read_z_title(z_id)
+		print(str(num)+'.', 'id:', str(z_id) + ',', z_title)
 		num += 1
 	return True
 	
@@ -802,9 +849,9 @@ def str_from_list(sort_flag, draw_flag, init, i):
 	for entry in init: fin.append(entry[i])
 	if sort_flag: fin.sort()
 	if draw_flag:
-		for entry in fin: strn += entry + ', '
+		for entry in fin: strn += str(entry) + ', '
 	else:
-		for entry in fin: strn += entry + '\n'
+		for entry in fin: strn += str(entry) + '\n'
 	return strn
 	
 def list_all_tags():
@@ -813,89 +860,81 @@ def list_all_tags():
 
 def list_selected_zettels(entries):
 	strn = str_from_list(sort_titles, draw_titles_in_line, entries, 1)
-	print('viewed / selected zettels:'); print(strn); print(divider)
+	print(divider); print('viewed / selected zettels:'); print(strn); print(divider)
 	
 def list_selected_tags(entries):
 	strn = str_from_list(sort_tags, draw_tags_in_line, entries, 1)
-	print('viewed / selected tags:'); print(strn); print(divider)
+	print(divider); print('viewed / selected tags:'); print(strn); print(divider)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ SUB-MENU OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def zettel_ops(z_id, z_path):
-	os.system('clear'); print_whole_zettel(z_id)
-	#print_zettel_ops()
+	print_zettel_ops()
 	while True:
-		print('selected zette:', z_path)
-		inp = input("ZETTEL OPS ('?' for commands) » ").strip()
-		if inp == "": print_whole_zettel(z_id)
-		elif inp == "?": print_zettel_ops()
-		elif inp == 'q': return
+		inp = input("ZETTEL OPS » ").strip()
+		print_whole_zettel(z_id); print_zettel_ops()
+		if inp == 'q': return
 		
 def tag_ops(tag_id, tag):
-	os.system('clear'); list_by_tag(tag_id)
-	#print_tag_ops()
+	zettel_entries = list_by_tag(tag_id); print_tag_ops()
 	while True:
-		print('selected tag:', tag)
-		inp = input("TAG OPS ('?' for commands) » ").strip()
-		os.system('clear')
-		if inp == "": list_by_tag(tag_id)
-		elif inp == "?": print_tag_ops()
-		elif inp == 'q': return
+		inp = input("TAG OPS » ").strip()
+		zettel_entries = list_by_tag(tag_id); print_tag_ops()
+		if inp == 'q': return
 		
 #▒▒▒▒▒▒▒▒▒▒▒▒ MAIN MENU ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def import_zettels():
-	print(divider); import_to_db(); print(divider)
+	#str?
+	import_to_db();
 	
 def info():
-	print(divider)
+	
 	if os.path.isfile(current_db_path):
-		print_db_meta(current_db_path); print(divider)
-	else: print_no_db(); print(divider)
+		print_db_meta(current_db_path)
+	else: print_no_db()
 	
 def tree():
-	os.system('tree'+' '+path); print(divider)
-	print('tree rendred'); print(divider)
+	#str
+	os.system('tree'+' '+path)
+	
 	
 def make_template():
-	gen_template(); print(divider)
+	gen_template();
 	print('generated a non-indexed template zettel:', zettel_template_name)
-	print(divider)
 	
 def review():
 	errors = False
-	print(divider)
-	print('checking your zettels...')
-	print(divider); print()
+	
+
 	if not os.path.isfile(current_db_path):
 		print_no_db(); print(divider); return
 	if list_zettels("SELECT * FROM titleless"):
 		print('\nthere are zettels without titles listed above, inspect')
-		print(divider); print(); errors = True
+		errors = True
 	if list_zettels("SELECT * FROM empties"):
 		print('\nthere are zettels without text listed above, fill them')
-		print(divider); print(); errors = True
+		errors = True
 	if list_zettels("SELECT * FROM no_links"):
 		print('\nthere are unlinked zettels listed above, link them')
-		print(divider); errors = True
+		errors = True
 	if list_zettels("SELECT * FROM self_links"):
 		print('\nthere are zettels linking to themselves listed above')
-		print(divider); errors = True
+		errors = True
 	if list_corrupt_links():
 		print('\nthere are corrupt links in your zettels, review them')
-		print(divider); errors = True
+		errors = True
 	if not errors:
 		print('all good, no corrupt links or unlinked zettels')
-		print(divider)
+		
 	
 def make_test_zettels():
 	if make_test_batch(): print_made_tests()
 	
 def main_menu():
-	os.system('clear')
 	print_main_ops()
 	while True:
-		inp = input("MAIN MENU ('?' for commands) » ").strip()
-		os.system('clear')
-		if inp == "": info()
+		inp = input("MAIN MENU » ").strip()
+		print_main_ops()
+		if inp == "i": info()
 		elif inp == "n": make_new_zettel()
 		elif inp == "z": search_zettels()
 		elif inp == "t": search_tags()
@@ -906,77 +945,52 @@ def main_menu():
 		elif inp == "test": make_test_zettels()
 		elif inp == "import": import_zettels()
 		elif inp == "git": git_menu()
-		elif inp == "?": print_main_ops()
 		elif inp == "q": quit()
 
-#▒▒▒▒▒▒▒▒▒▒▒▒ PRINT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def print_zettel_ops():
-	print(divider)
-	print('() - read current zettel')
-	print('(q) - return to previous menu (confirms selection)')
-	print(divider)
-	
-def print_tag_ops():
-	print(divider)
-	print('() - show zettels under this tag')
-	print('(q) - return to previous menu')
-	print(divider)
-	
-def print_search_commands():
-	print("'number' - select entry")
-	print("(c) - clear search query and start again")
-	print("(q) - stop searching and return")
-	print(divider)
-
-def print_searching():
-	print('keep narrowing your search by entering more characters')
-	print("or enter ':' for search tools")
-	print(divider)
+#▒▒▒▒▒▒▒▒▒▒▒▒ CLEARING PRINT ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def print_db_exists():
+	os.system('clear'); print(divider)
+	print('a database like this already exists, aborting')
 	
 def print_made_tests():
-	print(divider)
+	os.system('clear'); print(divider)
 	print('generated a number of test zettels')
 	print("don't forget to import them into the database")
-	print(divider)
 	
 def print_test_failed():
-	print(divider)
+	os.system('clear'); print(divider)
 	print('make sure you enter numbers')
-	print(divider)
 
 def print_test_warn():
-	print(divider)
+	os.system('clear'); print(divider)
 	print('make sure you have backed up your journal folder')
 	print('this will generate a batch of zettel .md cards in it')
 	print('you will have to import them back into a database')
-	print(divider)
 
 def print_links_select():
-	print(divider)
+	os.system('clear'); print(divider)
 	print('select zettels that you want to LINK to')
-	print(divider)
 	
 def print_tags_select():
-	print(divider)
+	os.system('clear'); print(divider)
 	print('select TAGS which you want to attach to zettel')
 	print('if there is no desired tag, you may register it')
-	print(divider)
 
 def print_tags_select():
-	print(divider)
-	print('select a suitable tag for your zettel')
+	os.system('clear'); print(divider)
+	print('select a suitable TAG for your zettel')
 	print('you can either search for existing tag')
 	print('or write a new one if no suitable found')
-	print(divider)
 
 def print_no_db():
+	os.system('clear'); print(divider)
 	print('no database matching the name provided in this script')
 	print('check the name in the script header, or import or')
 	print('initiate the database via respective commands')
-	
+
 def print_main_ops():
-	print(divider)
-	print('() - show statistics')
+	os.system('clear'); print(divider)
+	print('(i) - show statistics')
 	print('(z) - find zettel by name to enter the database')
 	print('(t) - browse tags in the database')
 	print('(r) - review zettels for errors in links and content')
@@ -988,10 +1002,9 @@ def print_main_ops():
 	print('(import) - import .md zettels to the database')
 	print('(git) - git menu')
 	print('(q) - quit')
-	print(divider)
 
 def print_git_ops():
-	print(divider)
+	os.system('clear'); print(divider)
 	print('() - current')
 	print('(l) - log')
 	print('(s) - status')
@@ -1002,30 +1015,71 @@ def print_git_ops():
 	print('(ha) - hard reset')
 	print('(u) - launch "gitui" (must be installed)')
 	print('(q) - quit to main')
-	print(divider)
 
 def print_writer_options():
-	print(divider)
+	os.system('clear'); print(divider)
 	print('to use any of provided external editors,')
 	print('make sure they are installed\n')
 	print('() - write with user-defined editor (see script header)')
 	print('(v) - write using vim')
 	print('(e) - write using emacs')
 	print('(n) - write using nano')
+	
+def print_how_to_search_zettel():
+	os.system('clear'); print(divider)
+	print('how do you want to find a zettel?')
 	print(divider)
+	print('(n) - by zettel name (title)')
+	print('(t) - by tag')
+	print('(q) - to return')
 
+#▒▒▒▒▒▒▒▒▒▒▒▒ NON-CLEARING ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def print_searching():
+	print(divider)
+	print('keep narrowing your search by entering more characters')
+	print("or enter ':' for search tools")
+	
 def print_writing_links():
+	print(divider)
 	print('() - start selecting links')
 	print('(p) - proceed to next step')
 	print('(r) - redo (start selecting anew)')
 	
 def print_writing_tags():
+	print(divider)
 	print('() - start selecting tags')
 	print('(p) - proceed to next step')
 	print('(r) - redo (start selecting anew)')
 	
+def print_search_zettel_commands():
+	print(divider)
+	print('zettel search commands')
+	print(divider)
+	print("'number' - select entry")
+	print("(c) - clear search query and start again")
+	print("(q) - stop searching and return")
+	
+def print_search_tag_commands():
+	print(divider)
+	print('tag search commands')
+	print(divider)
+	print("'number' - select entry")
+	print('(n) - add a new tag not from list')
+	print("(c) - clear search query and start again")
+	print("(q) - stop searching and return")
+	
+def print_zettel_ops():
+	print(divider)
+	print('(q) - return to previous menu (confirms selection)')
+	
+def print_tag_ops():
+	print(divider)
+	print('(q) - return to previous menu (confirms selection)')
+	
+#▒▒▒▒▒▒▒▒▒▒▒▒ OTHER PRINTING ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def print_db_meta(db_path):
 	try:
+		os.system('clear'); print(divider)
 		meta = query_db("SELECT * FROM meta", db_path)
 		print('database name:', meta[0][1])
 		print('created:', meta[0][2])
@@ -1039,13 +1093,16 @@ def print_db_meta(db_path):
 		print('empty zettels:', meta[0][8])
 		print('zettels without titles:', meta[0][9])
 	except:
+		print(divider)
 		print("couldn't find metadata table on:", db_path)
 
 def print_whole_zettel(z_id):
-	os.system('clear')
-	print(divider)
+	os.system('clear'); print(divider)
 	print(read_whole_zettel(z_id))
-	print(divider)
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ PROMPTS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def command_prompt(): return ' » '
+def string_input_prompt(): return ' « '
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ START ▒▒▒▒▒▒▒▒▒▒▒▒▒
 main_menu()
