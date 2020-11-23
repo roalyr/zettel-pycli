@@ -1075,7 +1075,7 @@ def print_zettel_ops():
 def print_tag_ops():
 	print(divider)
 	print('(q) - return to previous menu (confirms selection)')
-	
+	 
 #▒▒▒▒▒▒▒▒▒▒▒▒ OTHER PRINTING ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def print_db_meta(db_path):
 	try:
