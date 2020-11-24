@@ -367,11 +367,102 @@ def edit_links_z_id_from(z_id):
 	zettels = zettel_picker()
 	rewrite_links_from(z_id, zettels)
 	
-def edit_tags_z_id(z_id):
+def edit_tags_z_id(z_id): #zettel ops only
 	print('editing tags')
 	tags = tag_picker()
 	rewrite_tags(z_id, tags)
 	
+#▒▒▒▒▒▒▒▒▒▒▒▒ ANALYZE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def info():
+	if os.path.isfile(current_db_path):
+		print_db_meta(current_db_path)
+	else: print_no_db()
+	
+def tree():
+	#str
+	os.system('tree'+' '+path)
+	
+def review():
+	print_start_check(); errors = False
+	if not os.path.isfile(current_db_path): print_no_db(); return
+	if list_zettels(None, select_no_titles_all): print_no_titles(); errors = True
+	if list_zettels(None, select_no_bodies_all): print_no_bodies(); errors = True
+	if list_zettels(None, select_no_links_all): print_no_links(); errors = True
+	if list_zettels(None, select_self_links_all): print_self_links(); errors = True
+	if list_invalid_links(): print_invalid_links(); errors = True
+	if not errors: print_check_passed()
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ MENU OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def git_menu():
+	print_git_ops()
+	while True:
+		inp = c_prompt('GIT')
+		print_git_ops()
+		if inp == "": git_info()
+		elif inp == "l": git_log_f()
+		elif inp == "s": git_status()
+		elif inp == "a": git_add()
+		elif inp == "c": git_commit_f()
+		elif inp == "p": git_push()
+		elif inp == "r": git_revert_f()
+		elif inp == "ha": git_reset_hard_f()
+		elif inp == "u": git_launch_gitui()
+		elif inp == "q": break
+		
+def zettel_ops(zettel):
+	global sub_menu_depth; sub_menu_depth += 1
+	z_id = zettel[0]; z_title = zettel[1]; z_body = zettel[3]
+	if sub_menu_depth < 2: print_zettel_ops() #init
+	else: print_zettel_ops_lim() #init
+	while True:
+		inp = c_prompt('ZETTEL')
+		print_whole_zettel(z_id); 
+		if sub_menu_depth < 2:
+			print_zettel_ops()
+			if inp == 'q': sub_menu_depth -= 1; return
+			elif inp == 't': edit_main_z_title(z_id, z_title)
+			elif inp == 'b': edit_main_z_body(z_id, z_body)
+			elif inp == 'l': edit_links_z_id_from(z_id)
+			elif inp == 'g': edit_tags_z_id(z_id)
+		else:
+			print_zettel_ops_lim()
+			if inp == 'q': sub_menu_depth -= 1; return
+		
+def tag_ops(tag_id, tag):
+	global sub_menu_depth; sub_menu_depth += 1
+	zettel_entries = list_by_tag(tag_id) #init
+	if sub_menu_depth < 2: print_tag_ops() #init
+	else: print_tag_ops_lim() #init
+	while True:
+		inp = c_prompt('TAG')
+		zettel_entries = list_by_tag(tag_id)
+		if sub_menu_depth < 2:
+			print_tag_ops()
+			if inp == 'q': sub_menu_depth -= 1; return
+		else: 
+			print_tag_ops_lim()
+			if inp == 'q': sub_menu_depth -= 1; return
+			
+def main_menu():
+	global sub_menu_depth
+	print_main_ops()
+	while True:
+		sub_menu_depth = 0
+		inp = c_prompt('MENU')
+		print_main_ops()
+		if inp == "i": info(); remove_links_from(9)
+		elif inp == "n": make_new_zettel(); print_main_ops()
+		elif inp == "z": search_zettels(); print_main_ops()
+		elif inp == "t": search_tags(); print_main_ops()
+		elif inp == "r": review()
+		elif inp == "tree": tree()
+		elif inp == "init": init_new_db(); print_main_ops()
+		elif inp == "temp": make_template(); print_main_ops()
+		elif inp == "test": make_test_zettels(); print_main_ops()
+		elif inp == "import": import_zettels(); print_main_ops()
+		elif inp == "git": git_menu(); print_main_ops()
+		elif inp == "q": quit()
+
 #▒▒▒▒▒▒▒▒▒▒▒▒ SEARCH OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def search_zettels():
 	flag = ''
@@ -589,97 +680,6 @@ def list_selected_zettels(entries):
 def list_selected_tags(entries):
 	strn = str_from_list(sort_tags, draw_tags_in_line, entries, 1)
 	print('viewed / selected tags:'); print(strn);
-
-#▒▒▒▒▒▒▒▒▒▒▒▒ ANALYZE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def info():
-	if os.path.isfile(current_db_path):
-		print_db_meta(current_db_path)
-	else: print_no_db()
-	
-def tree():
-	#str
-	os.system('tree'+' '+path)
-	
-def review():
-	print_start_check(); errors = False
-	if not os.path.isfile(current_db_path): print_no_db(); return
-	if list_zettels(None, select_no_titles_all): print_no_titles(); errors = True
-	if list_zettels(None, select_no_bodies_all): print_no_bodies(); errors = True
-	if list_zettels(None, select_no_links_all): print_no_links(); errors = True
-	if list_zettels(None, select_self_links_all): print_self_links(); errors = True
-	if list_invalid_links(): print_invalid_links(); errors = True
-	if not errors: print_check_passed()
-
-#▒▒▒▒▒▒▒▒▒▒▒▒ MENU OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def git_menu():
-	print_git_ops()
-	while True:
-		inp = c_prompt('GIT')
-		print_git_ops()
-		if inp == "": git_info()
-		elif inp == "l": git_log_f()
-		elif inp == "s": git_status()
-		elif inp == "a": git_add()
-		elif inp == "c": git_commit_f()
-		elif inp == "p": git_push()
-		elif inp == "r": git_revert_f()
-		elif inp == "ha": git_reset_hard_f()
-		elif inp == "u": git_launch_gitui()
-		elif inp == "q": break
-		
-def zettel_ops(zettel):
-	global sub_menu_depth; sub_menu_depth += 1
-	z_id = zettel[0]; z_title = zettel[1]; z_body = zettel[3]
-	if sub_menu_depth < 2: print_zettel_ops() #init
-	else: print_zettel_ops_lim() #init
-	while True:
-		inp = c_prompt('ZETTEL')
-		print_whole_zettel(z_id); 
-		if sub_menu_depth < 2:
-			print_zettel_ops()
-			if inp == 'q': sub_menu_depth -= 1; return
-			elif inp == 't': edit_main_z_title(z_id, z_title)
-			elif inp == 'b': edit_main_z_body(z_id, z_body)
-			elif inp == 'l': edit_links_z_id_from(z_id)
-			elif inp == 'g': edit_tags_z_id(z_id)
-		else:
-			print_zettel_ops_lim()
-			if inp == 'q': sub_menu_depth -= 1; return
-		
-def tag_ops(tag_id, tag):
-	global sub_menu_depth; sub_menu_depth += 1
-	zettel_entries = list_by_tag(tag_id) #init
-	if sub_menu_depth < 2: print_tag_ops() #init
-	else: print_tag_ops_lim() #init
-	while True:
-		inp = c_prompt('TAG')
-		zettel_entries = list_by_tag(tag_id)
-		if sub_menu_depth < 2:
-			print_tag_ops()
-			if inp == 'q': sub_menu_depth -= 1; return
-		else: 
-			print_tag_ops_lim()
-			if inp == 'q': sub_menu_depth -= 1; return
-			
-def main_menu():
-	global sub_menu_depth
-	print_main_ops()
-	while True:
-		sub_menu_depth = 0
-		inp = c_prompt('MENU')
-		print_main_ops()
-		if inp == "i": info(); remove_links_from(9)
-		elif inp == "n": make_new_zettel(); print_main_ops()
-		elif inp == "z": search_zettels(); print_main_ops()
-		elif inp == "t": search_tags(); print_main_ops()
-		elif inp == "r": review()
-		elif inp == "tree": tree()
-		elif inp == "init": init_new_db(); print_main_ops()
-		elif inp == "temp": make_template(); print_main_ops()
-		elif inp == "test": make_test_zettels(); print_main_ops()
-		elif inp == "import": import_zettels(); print_main_ops()
-		elif inp == "git": git_menu(); print_main_ops()
-		elif inp == "q": quit()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ PRINT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 #DB ERROR CHECK
