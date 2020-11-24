@@ -275,7 +275,7 @@ def write_ext(option, inject_text):
 	return written.strip() #succeeded
 	
 def write_with_editor(inject_text):
-	if default_editor == 'python': return s_prompt('enter string')
+	if default_editor == 'python': return s_prompt('enter text')
 	while True:
 		print_writer_options()
 		inp = c_prompt('select editor')
@@ -283,7 +283,7 @@ def write_with_editor(inject_text):
 		elif inp == 'v': return write_ext('vim', inject_text)
 		elif inp == 'n': return write_ext('nano', inject_text)
 		elif inp == 'e': return write_ext('emacs', inject_text)
-		elif inp == 'i': return s_prompt('enter string')
+		elif inp == 'i': return s_prompt('enter text')
 		elif inp == "q": return None
 	
 def make_new_zettel():
@@ -306,12 +306,13 @@ def make_new_zettel():
 	write_tags(z_id, tags)
 	write_links_from(z_id, zettels_linked)
 	#update meta
-	#preview
+	#find it and enter ops sub menu
+	new_zettel = read_main_id(z_id)[0]
+	zettel_ops(new_zettel)
 
 def make_new_tag():
 	tag = ''; conf = ''
-	while tag =='':
-		tag = s_prompt('write a new tag')
+	while not tag: tag = write_with_editor(None)
 	while conf =='':
 		print('New tag:', tag)
 		conf = c_prompt('is this correct?')
