@@ -133,186 +133,102 @@ from_taglist_all = "SELECT * FROM taglist"
 from_taglist_tag_like = "SELECT * FROM taglist WHERE tag LIKE ? "
 
 from_tags_z_id = "SELECT * FROM tags WHERE z_id = ?"
+from_tags_all_dist = "SELECT DISTINCT * FROM tags"
 from_tags_tag_like = "SELECT * FROM tags WHERE tag LIKE ? "
 
 from_links_z_id_from = "SELECT * FROM links WHERE z_id_from = ?"
 from_links_z_id_to = "SELECT * FROM links WHERE z_id_to = ?"
 
-d_line = '-------------------------------------------------------'
-lorem = '''Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
-Phasellus mollis vulputate lobortis. Etiam auctor, massa in pulvinar 
-pulvinar, nisi est consectetur arcu, ac rhoncus metus velit quis nisl. 
-In nec eros in tortor faucibus egestas a vitae erat. Sed tincidunt nunc 
-urna. Donec sit amet justo interdum, ullamcorper orci a, cursus dui. 
-Sed et sem eget nunc tristique scelerisque ut a augue. 
-Etiam leo enim, lacinia eget luctus at, aliquet vel ipsum. 
-Quisque vulputate leo vitae erat sodales ultrices. Curabitur id dictum 
-ligula. Praesent lectus orci, tincidunt convallis turpis sit amet, dapibus 
-iaculis nisi. Integer quis gravida erat. '''
+delete_taglist_all = "DELETE FROM taglist"
 
-#▒▒▒▒▒▒▒▒▒▒▒▒ GIT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def git_info():
-	print('Current head:');
-	os.system("git log --branches --oneline -n 1")
-	
-def git_status():
-	os.system("git status")
-	
-def git_log_f(): 
-	os.system("git log --branches --oneline -n 20"); 
-	
-def git_add():
-	os.system("git add . ")
-	os.system("git status --short")
-	
-def git_launch_gitui():
-	os.system('gitui')
+#▒▒▒▒▒▒▒▒▒▒▒▒ WRITING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def write_zettel(z_title, z_path, z_body):
+	z_id = add_to_db([z_title, z_path, z_body], insert_main, current_db_path)
+	return z_id #regurns only last id
 
-def git_push():
-	os.system("git push --all")
+def write_z_tags(z_id, tags):
+	entry_list = []
+	for tag in tags: #swap tag ID with z_id
+		entry_list.append((z_id, tag[1]))
+	incr_add_to_db(entry_list, insert_tags, current_db_path)
 
-def git_commit_f():
-	print('Files added:'); 
-	git_add(); git_info()
-	commit_name = c_prompt("commit name (' ' to abort)")
-	if commit_name =='': return
-	inp = c_prompt("really? ('yes' to proceed)")
-	if inp == "yes": os.system("git commit -m "+ commit_name)
+def write_new_tag_to_list(tags):
+	t_id = incr_add_to_db(tags, insert_taglist, current_db_path)
+	return t_id #regurns only last id
 	
-def git_revert_f():
-	print('Commits:');
-	git_log_f()
-	commit_name = c_prompt("commit name to revert (' ' to abort)")
-	if commit_name =='': return
-	os.system("git revert "+ commit_name)
+def write_z_links(z_id, links):
+	entry_list = []
+	for link in links: #swap tag ID with z_id
+		entry_list.append((z_id, link[0]))
+	incr_add_to_db(entry_list, insert_links, current_db_path)
 	
-def git_reset_hard_f():
-	print('Commits:');
-	git_log_f()
-	commit_name = c_prompt("commit name to reset (' ' to abort)")
-	if commit_name =='': return
-	inp = c_prompt("really? ('yes' to proceed)")
-	if inp == "yes": os.system("git reset --hard "+ commit_name)
+#▒▒▒▒▒▒▒▒▒▒▒▒ READING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def read_z_body(z_id): return query_db(z_id, from_main_id, current_db_path)[0][3]
+def read_z_title(z_id): return query_db(z_id, from_main_id, current_db_path)[0][1]
+	
+def read_z_tags(z_id): return query_db(z_id, from_tags_z_id, current_db_path)
+def read_z_links_from(z_id): return query_db(z_id, from_links_z_id_from, current_db_path)
 
-#▒▒▒▒▒▒▒▒▒▒▒▒ FILE & TEST OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def make_template():
-	gen_template();
-	print('generated a non-indexed template zettel:', zettel_template_name)
-	
-def make_test_zettels():
-	if make_test_batch(): print_made_tests()
+def read_whole_zettel(z_id):
+	return marker_title + '\n' + read_z_title(z_id) + '\n\n' \
+	+ marker_body+ '\n' + read_z_body(z_id) + '\n\n' \
+	+ marker_tags+ '\n' + str(read_z_tags(z_id)) + '\n\n' \
+	+ marker_links+ '\n' + str(read_z_links_from(z_id))
 
-def gen_template():
-	f = open(path + "/" + zettel_template_name, "w")
-	f.write(zettel_template)
-	f.close()
-	
-def make_test_batch():
-	print_test_warn()
-	try:
-		inp_num = int(s_prompt('how many zettels to make?'))
-		inp_links = int(s_prompt('how many links per zettel'))
-		inp_corr = float(s_prompt('amount of correct zettels (0.0..1.0)'))
-	except: print_test_failed(); return False #failed
-	#perfect zettels
-	for i in range(inp_num):
-		frnd = random.random(); frnd2 = random.random(); frnd3 = random.random() 
-		if frnd <= inp_corr:
-			links = ''
-			try: #generate links, avoiding self-linking
-				for j in range(inp_links):
-					rnd = random.randrange(inp_num)
-					if rnd == i: rnd += 1
-					if rnd == inp_num: rnd -= 2
-					links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
-			except: pass
-			zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i) \
-			+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
-			+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
-		else: #bad zettels
-			links = ''
-			try: #make some wrong links
-				if frnd3 < 0.25:
-					for j in range(inp_links):
-						rnd = random.randrange(inp_num)
-						links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
-				elif frnd2 < 0.5 and frnd >= 0.25: links += '[some](bronek links)'
-				elif frnd < 0.75 and frnd >= 0.5: links += '[Self link '+str(j)+']('+str(i)+'.md)\n'
-				else: pass
-			except: pass
-			
-			if frnd < 0.33: #make some wrong zettels
-				zettel_template_test = marker_title + '\n'\
-				+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
-				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
-			elif frnd3 < 0.66 and frnd >= 0.33:
-				zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i) \
-				+ '\n\n' + marker_body + '\n\n' + marker_tags + '\n' \
-				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
-			elif frnd2 <= 1.0 and frnd >= 0.66:
-				zettel_template_test = marker_title + '\n'\
-				+ '\n\n' + marker_body + '\n' + marker_tags + '\n' \
-				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
-		if not os.path.exists(path): os.mkdir(path)
-		f = open(path + "/" + str(i) + '.md', "w")
-		f.write(zettel_template_test); f.close()
-	return True #succeeded
-	
-#▒▒▒▒▒▒▒▒▒▒▒▒ PARSING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def find_md_links(md):
-	INLINE_LINK_RE = re.compile(r'\(([^)]+)\)')
-	links = list(INLINE_LINK_RE.findall(md))
-	return links
+def read_invalid_links_all(): return query_db(None, from_invalid_links_all, current_db_path)
 
-def find_comma_separated(md):
-	COMMA_SEP_CONT = re.compile(r'(.+?)(?:,\s*|$)')
-	text = list(COMMA_SEP_CONT.findall(md))
-	return text
+def read_taglist_id(id): return query_db(id, from_taglist_id, current_db_path)
+def read_taglist_all(): return query_db(None, from_taglist_all, current_db_path)
+def read_taglist_tags_like(name): return query_db('%'+name+'%', from_taglist_tag_like, current_db_path)
+
+def read_tags_all_dist(): return query_db(None, from_tags_all_dist, current_db_path)
+def read_tags_tag_like(name): return query_db('%'+name+'%', from_tags_tag_like, current_db_path)
+
+def read_main_id(id): return query_db(id, from_main_id, current_db_path)
+def read_main_all(): return query_db(None, from_main_all, current_db_path)
+def read_main_z_titles_like(name): return query_db('%'+name+'%', from_main_z_title_like, current_db_path)
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ REWRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+#called by 'edit' functions
+def rewrite_z_body(id, text):
+	add_to_db([text, id], update_z_body, current_db_path)
 	
-def parse_zettel_metadata(z_path):
-	data = {'title' : '', 'body' : '', 'tags' : [], 'links' : [], }
-	f = open(z_path, 'r')
-	#a switch flag to read links in tge end of the file
-	reading_title = False
-	reading_body = False
-	reading_links = False
-	reading_tags = False
-	#parse keywords
-	for line in f:
-		if marker_body in line:
-			reading_title = False
-			reading_body = True
-			reading_tags = False
-			reading_links = False
-			continue
-		if marker_title in line:
-			reading_title = True
-			reading_body = False
-			reading_tags = False
-			reading_links = False
-			continue
-		if marker_tags in line:
-			reading_title = False
-			reading_body = False
-			reading_tags = True
-			reading_links = False
-			continue
-		if marker_links in line:
-			reading_title = False
-			reading_body = False
-			reading_tags = False
-			reading_links = True
-			continue
-		if reading_title: data['title'] += line.strip()
-		if reading_body: data['body'] += line.strip()
-		if reading_tags: data['tags'] += find_comma_separated(line)
-		if reading_links: data['links'] += find_md_links(line)
-	return data
+def rewrite_z_title(id, title):
+	add_to_db([title, id], update_z_title, current_db_path)
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ SCAN / REBUILD OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def rescan_tags_to_list(): #after tag edit
+	tags = []
+	delete_from_db(None, delete_taglist_all, current_db_path)
+	for entry in read_tags_all_dist():
+		tags.append((entry[2],)) #need only names
+	incr_add_to_db(tags, insert_taglist, current_db_path)
+
+def rescan_links(): #after link edit
+	print()
+	
+def rescan_meta(): #after any edit
+	print()
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def import_zettels():
 	#str?
 	import_to_db();
+	
+def delete_from_db(query, exec_line, db_path):
+	conn = None
+	try: conn = sqlite3.connect(db_path)
+	except Error as e: print(e)
+	finally:
+		if conn:
+			try:
+				c = conn.cursor()
+				if query: 
+					c.execute(exec_line, (query,))
+				else: 
+					c.execute(exec_line)
+			except Error as e: print(e)
+			conn.commit(); conn.close();
 	
 def query_db(query, exec_line, db_path):
 	found = []; conn = None
@@ -581,60 +497,8 @@ def make_new_tag():
 		print('New tag:', tag)
 		conf = c_prompt('is this correct?')
 	
-	t_id = write_tags_to_list([(tag,)])
+	t_id = write_new_tag_to_list([(tag,)])
 	return (t_id, tag)
-
-#▒▒▒▒▒▒▒▒▒▒▒▒ WRITING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def upsate_z_body(id, text):
-	add_to_db([text, id], update_z_body, current_db_path)
-	
-def update_z_title(id, title):
-	add_to_db([title, id], update_z_title, current_db_path)
-
-def write_zettel(z_title, z_path, z_body):
-	z_id = add_to_db([z_title, z_path, z_body], insert_main, current_db_path)
-	return z_id #regurns only last id
-
-def write_z_tags(z_id, tags):
-	entry_list = []
-	for tag in tags: #swap tag ID with z_id
-		entry_list.append((z_id, tag[1]))
-	incr_add_to_db(entry_list, insert_tags, current_db_path)
-
-def write_tags_to_list(tags):
-	t_id = incr_add_to_db(tags, insert_taglist, current_db_path)
-	return t_id #regurns only last id
-	
-def write_z_links(z_id, links):
-	entry_list = []
-	for link in links: #swap tag ID with z_id
-		entry_list.append((z_id, link[0]))
-	incr_add_to_db(entry_list, insert_links, current_db_path)
-	
-#▒▒▒▒▒▒▒▒▒▒▒▒ READING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def read_z_body(z_id): return query_db(z_id, from_main_id, current_db_path)[0][3]
-def read_z_title(z_id): return query_db(z_id, from_main_id, current_db_path)[0][1]
-	
-def read_z_tags(z_id): return query_db(z_id, from_tags_z_id, current_db_path)
-def read_z_links_from(z_id): return query_db(z_id, from_links_z_id_from, current_db_path)
-
-def read_whole_zettel(z_id):
-	return marker_title + '\n' + read_z_title(z_id) + '\n\n' \
-	+ marker_body+ '\n' + read_z_body(z_id) + '\n\n' \
-	+ marker_tags+ '\n' + str(read_z_tags(z_id)) + '\n\n' \
-	+ marker_links+ '\n' + str(read_z_links_from(z_id))
-
-def read_invalid_links_all(): return query_db(None, from_invalid_links_all, current_db_path)
-
-def read_taglist_id(id): return query_db(id, from_taglist_id, current_db_path)
-def read_taglist_all(): return query_db(None, from_taglist_all, current_db_path)
-def read_taglist_tags_like(name): return query_db('%'+name+'%', from_taglist_tag_like, current_db_path)
-
-def read_tags_tag_like(name): return query_db('%'+name+'%', from_tags_tag_like, current_db_path)
-
-def read_main_id(id): return query_db(id, from_main_id, current_db_path)
-def read_main_all(): return query_db(None, from_main_all, current_db_path)
-def read_main_z_titles_like(name): return query_db('%'+name+'%', from_main_z_title_like, current_db_path)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ SEARCH OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def search_zettels():
@@ -871,6 +735,177 @@ def review():
 	if list_invalid_links(): print_invalid_links(); errors = True
 	if not errors: print_check_passed()
 
+#▒▒▒▒▒▒▒▒▒▒▒▒ GIT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def git_info():
+	print('Current head:');
+	os.system("git log --branches --oneline -n 1")
+	
+def git_status():
+	os.system("git status")
+	
+def git_log_f(): 
+	os.system("git log --branches --oneline -n 20"); 
+	
+def git_add():
+	os.system("git add . ")
+	os.system("git status --short")
+	
+def git_launch_gitui():
+	os.system('gitui')
+
+def git_push():
+	os.system("git push --all")
+
+def git_commit_f():
+	print('Files added:'); 
+	git_add(); git_info()
+	commit_name = c_prompt("commit name (' ' to abort)")
+	if commit_name =='': return
+	inp = c_prompt("really? ('yes' to proceed)")
+	if inp == "yes": os.system("git commit -m "+ commit_name)
+	
+def git_revert_f():
+	print('Commits:');
+	git_log_f()
+	commit_name = c_prompt("commit name to revert (' ' to abort)")
+	if commit_name =='': return
+	os.system("git revert "+ commit_name)
+	
+def git_reset_hard_f():
+	print('Commits:');
+	git_log_f()
+	commit_name = c_prompt("commit name to reset (' ' to abort)")
+	if commit_name =='': return
+	inp = c_prompt("really? ('yes' to proceed)")
+	if inp == "yes": os.system("git reset --hard "+ commit_name)
+
+#▒▒▒▒▒▒▒▒▒▒▒▒ FILE & TEST OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def make_template():
+	gen_template();
+	print('generated a non-indexed template zettel:', zettel_template_name)
+	
+def make_test_zettels():
+	if make_test_batch(): print_made_tests()
+
+def gen_template():
+	f = open(path + "/" + zettel_template_name, "w")
+	f.write(zettel_template)
+	f.close()
+	
+def make_test_batch():
+	
+	lorem = '''Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
+	Phasellus mollis vulputate lobortis. Etiam auctor, massa in pulvinar 
+	pulvinar, nisi est consectetur arcu, ac rhoncus metus velit quis nisl. 
+	In nec eros in tortor faucibus egestas a vitae erat. Sed tincidunt nunc 
+	urna. Donec sit amet justo interdum, ullamcorper orci a, cursus dui. 
+	Sed et sem eget nunc tristique scelerisque ut a augue. 
+	Etiam leo enim, lacinia eget luctus at, aliquet vel ipsum. 
+	Quisque vulputate leo vitae erat sodales ultrices. Curabitur id dictum 
+	ligula. Praesent lectus orci, tincidunt convallis turpis sit amet, dapibus 
+	iaculis nisi. Integer quis gravida erat. '''
+
+	print_test_warn()
+	try:
+		inp_num = int(s_prompt('how many zettels to make?'))
+		inp_links = int(s_prompt('how many links per zettel'))
+		inp_corr = float(s_prompt('amount of correct zettels (0.0..1.0)'))
+	except: print_test_failed(); return False #failed
+	#perfect zettels
+	for i in range(inp_num):
+		frnd = random.random(); frnd2 = random.random(); frnd3 = random.random() 
+		if frnd <= inp_corr:
+			links = ''
+			try: #generate links, avoiding self-linking
+				for j in range(inp_links):
+					rnd = random.randrange(inp_num)
+					if rnd == i: rnd += 1
+					if rnd == inp_num: rnd -= 2
+					links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
+			except: pass
+			zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i) \
+			+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
+			+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
+		else: #bad zettels
+			links = ''
+			try: #make some wrong links
+				if frnd3 < 0.25:
+					for j in range(inp_links):
+						rnd = random.randrange(inp_num)
+						links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
+				elif frnd2 < 0.5 and frnd >= 0.25: links += '[some](bronek links)'
+				elif frnd < 0.75 and frnd >= 0.5: links += '[Self link '+str(j)+']('+str(i)+'.md)\n'
+				else: pass
+			except: pass
+			
+			if frnd < 0.33: #make some wrong zettels
+				zettel_template_test = marker_title + '\n'\
+				+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
+				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
+			elif frnd3 < 0.66 and frnd >= 0.33:
+				zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i) \
+				+ '\n\n' + marker_body + '\n\n' + marker_tags + '\n' \
+				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
+			elif frnd2 <= 1.0 and frnd >= 0.66:
+				zettel_template_test = marker_title + '\n'\
+				+ '\n\n' + marker_body + '\n' + marker_tags + '\n' \
+				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
+		if not os.path.exists(path): os.mkdir(path)
+		f = open(path + "/" + str(i) + '.md', "w")
+		f.write(zettel_template_test); f.close()
+	return True #succeeded
+	
+#▒▒▒▒▒▒▒▒▒▒▒▒ PARSING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def find_md_links(md):
+	INLINE_LINK_RE = re.compile(r'\(([^)]+)\)')
+	links = list(INLINE_LINK_RE.findall(md))
+	return links
+
+def find_comma_separated(md):
+	COMMA_SEP_CONT = re.compile(r'(.+?)(?:,\s*|$)')
+	text = list(COMMA_SEP_CONT.findall(md))
+	return text
+	
+def parse_zettel_metadata(z_path):
+	data = {'title' : '', 'body' : '', 'tags' : [], 'links' : [], }
+	f = open(z_path, 'r')
+	#a switch flag to read links in tge end of the file
+	reading_title = False
+	reading_body = False
+	reading_links = False
+	reading_tags = False
+	#parse keywords
+	for line in f:
+		if marker_body in line:
+			reading_title = False
+			reading_body = True
+			reading_tags = False
+			reading_links = False
+			continue
+		if marker_title in line:
+			reading_title = True
+			reading_body = False
+			reading_tags = False
+			reading_links = False
+			continue
+		if marker_tags in line:
+			reading_title = False
+			reading_body = False
+			reading_tags = True
+			reading_links = False
+			continue
+		if marker_links in line:
+			reading_title = False
+			reading_body = False
+			reading_tags = False
+			reading_links = True
+			continue
+		if reading_title: data['title'] += line.strip()
+		if reading_body: data['body'] += line.strip()
+		if reading_tags: data['tags'] += find_comma_separated(line)
+		if reading_links: data['links'] += find_md_links(line)
+	return data
+
 #▒▒▒▒▒▒▒▒▒▒▒▒ MENU OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def git_menu():
 	print_git_ops()
@@ -907,7 +942,7 @@ def main_menu():
 	while True:
 		inp = c_prompt('MENU')
 		print_main_ops()
-		if inp == "i": info()
+		if inp == "i": info();
 		elif inp == "n": make_new_zettel(); print_main_ops()
 		elif inp == "z": search_zettels(); print_main_ops()
 		elif inp == "t": search_tags(); print_main_ops()
@@ -1116,8 +1151,10 @@ def c_prompt(prompt): divider(); return input(prompt+" » ").strip()
 def s_prompt(prompt): divider(); return input(prompt+" « ").strip()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CLEAR SCREEN AND DIVIDER ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def divider(): 
+	d_line = '-------------------------------------------------------'
+	print(d_line)
 def cl(): os.system('cls' if os.name == 'nt' else 'clear')
-def divider(): print(d_line)
 def cl_divider(): cl(); divider()
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ START ▒▒▒▒▒▒▒▒▒▒▒▒▒
