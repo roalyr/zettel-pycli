@@ -408,20 +408,11 @@ def zettel_ops(zettel):
 			print_zettel_ops_lim()
 			if inp == 'q': sub_menu_depth -= 1; return
 		
-def tag_ops(tag_id, tag):
+def tag_ops(tag):
 	global sub_menu_depth; sub_menu_depth += 1
-	zettel_entries = list_by_tag(tag_id) #init
-	if sub_menu_depth < 2: print_tag_ops() #init
-	else: print_tag_ops_lim() #init
-	while True:
-		inp = c_prompt('')
-		zettel_entries = list_by_tag(tag_id)
-		if sub_menu_depth < 2:
-			print_tag_ops()
-			if inp == 'q': sub_menu_depth -= 1; return
-		else: 
-			print_tag_ops_lim()
-			if inp == 'q': sub_menu_depth -= 1; return
+	tag_id = tag[0];
+	zettels = list_by_tag(tag_id) #init
+	zettel_select_sub_menu(zettels)
 			
 def main_menu():
 	global sub_menu_depth
@@ -481,10 +472,22 @@ def search_tags():
 	entries = list(dict.fromkeys(entries)) #dedup
 	print_selected_tags(entries)
 	return entries
-	
+
+def zettel_select_sub_menu(zettels): #when zettel list provided
+	print_select_zettel_commands()
+	zettel = None
+	inp = c_prompt('')
+	try: 
+		zettel = zettels[int(inp)-1][0]
+		print_found_zettels(zettel, int(inp))
+		zettel_ops(zettel)
+	except (ValueError, IndexError): pass
+	if inp == "q": return
+	return
+
 def zettel_search_sub_menu(s):
 	print_search_zettel_commands()
-	inp = c_prompt('ZETTEL search')
+	inp = c_prompt('')
 	try: 
 		print_found_zettels(s['entries'][int(inp)-1], int(inp))
 		s['found'] = s['entries'][int(inp)-1]
@@ -496,7 +499,7 @@ def zettel_search_sub_menu(s):
 	
 def tag_search_sub_menu(s):
 	print_search_tag_commands()
-	inp = c_prompt('TAG search')
+	inp = c_prompt('')
 	try: 
 		print_found_tags(s['entries'][int(inp)-1], int(inp))
 		s['found'] = s['entries'][int(inp)-1]
@@ -511,7 +514,6 @@ def find_zettel(flag):
 	s = {'found': None, 'name': '', 'inp': '', 'entries': [], 'stop': False}
 	s['entries'] = read_main_all()
 	while True:
-		
 		if s['inp'] != ':': s['name'] += s['inp']
 		if flag == 'tag': print_all_tags()
 		if flag == 'name': s['entries'] = read_main_z_titles_like(s['name'])
@@ -528,7 +530,6 @@ def find_zettel(flag):
 		s['found'] = print_many_zettels_or_return(s['entries'])
 		if s['inp'] == ':': 
 			s = zettel_search_sub_menu(s); 
-			
 			if not s['stop']:
 				if flag == 'tag': print_all_tags()
 				print_many_zettels_or_return(s['entries']); 
@@ -539,14 +540,11 @@ def find_tags():
 	s = {'found': None, 'name': '', 'inp': '', 'entries': [], 'stop': False}
 	s['entries'] = read_taglist_all()
 	while True:
-		
 		if s['inp'] != ':': s['name'] += s['inp']
 		s['entries'] = read_taglist_tags_like(s['name'])
-
 		s['found'] = print_many_tags_or_return(s['entries'])
 		if s['inp'] == ':': 
 			s = tag_search_sub_menu(s); 
-			
 			if not s['stop']:
 				print_many_tags_or_return(s['entries']); 
 		if s['found'] or s['stop']: return s
@@ -554,22 +552,17 @@ def find_tags():
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ LIST OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def list_by_tag(tag_id):
-	list_names = []; list_zettel_entries = []
-	num = 1
-	tag_entries = read_taglist_id(tag_id)
-	tag = tag_entries[0][1]
-	tagged_entries = read_tags_tag_like(tag)
-	for tagged_entry in tagged_entries:
-		found_id = tagged_entry[1]
-		zettel_entries = read_main_id(found_id)
-		list_zettel_entries.append(zettel_entries[0]) #read always returns a list
-		z_title = zettel_entries[0][1]
-		list_names.append(z_title)
-	for entry in list_names:
-		print(str(num)+'.', entry)
-		num += 1
-	print('zettels under tag:', tag, '-', len(list_names))
-	return list_zettel_entries
+	titles = []; list_zettels = []
+	listed_tag = read_taglist_id(tag_id)
+	tags = read_tags_tag_like(listed_tag[0][1])
+	for tag in tags:
+		z_id = tag[1]
+		zettels = read_main_id(z_id)
+		list_zettels.append(zettels)
+		z_title = zettels[0][1]
+		titles.append(z_title)
+	print_zettels_under_tag(titles, listed_tag[0][1])
+	return list_zettels
 
 def list_invalid_links():
 	entries = read_invalid_links_all()
@@ -593,7 +586,7 @@ def list_invalid_links():
 		id_prev = z_id
 	return True
 		
-def list_zettels(query, exec_str): #for other errors
+def list_zettels(query, exec_str): #for other kinds of errors
 	entries = query_db(query, exec_str, current_db_path); num = 1
 	if entries == []: return False;
 	for entry in entries:
@@ -1133,6 +1126,11 @@ def print_search_zettel_commands():
 	print("'number' - select entry")
 	print("(c) - clear search query and start again")
 	print("(q) - stop searching and return")
+	
+def print_select_zettel_commands():
+	divider()
+	print("'number' - select entry")
+	print("(q) - stop searching and return")
 
 def print_zettel_ops():
 	divider()
@@ -1223,7 +1221,7 @@ def print_many_zettels_or_return(zettels):
 		for zettel in zettels:
 			print(str(num)+'.', zettel[1])
 			num += 1
-		print('total search hits:', len(zettels)); print_searching()
+		print('\ntotal search hits:', len(zettels)); print_searching()
 	elif len(zettels) == 0: 
 		cl_divider()
 		print("no zettel found, ':' for options");
@@ -1238,7 +1236,7 @@ def print_many_tags_or_return(tags):
 		for tag in tags:
 			print(str(num)+'.', tag[1])
 			num += 1
-		print('total search hits:', len(tags)); print_searching()
+		print('\ntotal search hits:', len(tags)); print_searching()
 	elif len(tags) == 0: 
 		cl_divider()
 		print("no tags found, ':' for options");
@@ -1246,6 +1244,13 @@ def print_many_tags_or_return(tags):
 		print_found_tags(tags[0], '')
 		return tags[0] #return what was found by narrowing down
 
+def print_zettels_under_tag(titles, tag):
+	num = 1
+	cl_divider()
+	for title in titles:
+		print(str(num)+'.', title)
+		num += 1
+	print('\nzettels under tag:', tag, '-', len(titles))
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ PROMPTS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def c_prompt(prompt): divider(); return input(prompt+" >> ").strip()
