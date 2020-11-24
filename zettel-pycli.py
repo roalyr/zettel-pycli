@@ -178,10 +178,11 @@ def write_links_select_from(z_id, links):
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ READING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def read_whole_zettel(z_id):
-	try: 
-		title = read_main_id(z_id)[1]
-		body = read_main_id(z_id)[3]
-	except IndexError: title =''; body =''
+	zettel = read_main_id(z_id)
+	try: title = zettel[0][1]; body = zettel[0][3]
+	except IndexError: 
+		title ='<no title / corrupted title>';
+		body ='<no text body / corrupted text body>'
 	tags = str(read_tags_z_id(z_id)) 
 	links_from = str(read_links_z_id_from(z_id))
 	return marker_title + '\n' + title + '\n\n' \
@@ -211,10 +212,10 @@ def read_main_z_body_like(name): return query_db('%'+name+'%', select_main_z_bod
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ REWRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 #called by 'edit' functions
-def rewrite_z_body(id, text):
+def rewrite_main_z_body(id, text):
 	add_to_db([text, id], update_main_z_body, current_db_path)
 	
-def rewrite_z_title(id, title):
+def rewrite_main_z_title(id, title):
 	add_to_db([title, id], update_main_z_title, current_db_path)
 
 def rewrite_links_from(z_id, new_links): 
@@ -456,27 +457,34 @@ def init_new_db():
 			conn.close()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ WRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def write_ext(option):
+def write_ext(option, inject_text):
 	written = ''
 	with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
+		if inject_text: 
+			try: tf.write(inject_text)
+			except TypeError: tf.write(inject_text.encode("utf-8"))
+			finally: tf.flush()
 		try: subprocess.call([option, tf.name])
 		except: print('no command found:', option); return written #failed
 		finally:
 			tf.seek(0); written = tf.read().decode("utf-8")
-	return written #succeeded
+	return written.strip() #succeeded
+	
+def write_with_editor(inject_text):
+	print_writer_options()
+	inp = c_prompt('select editor')
+	if inp == '': return write_ext(default_editor, inject_text)
+	elif inp == 'v': return write_ext('vim', inject_text)
+	elif inp == 'n': return write_ext('nano', inject_text)
+	elif inp == 'e': return write_ext('emacs', inject_text)
+	elif inp == "q": return None
 	
 def make_new_zettel():
 	z_title = ''
 	z_body = ''
 	while z_title == '': z_title = c_prompt('enter zettel title')
 	while z_body == '':
-		print_writer_options()
-		inp = c_prompt('')
-		if inp == '': z_body = write_ext(default_editor)
-		elif inp == 'v': z_body = write_ext('vim')
-		elif inp == 'n': z_body = write_ext('nano')
-		elif inp == 'e': z_body = write_ext('emacs')
-		elif inp == "q": return
+		z_body = write_with_editor(None)
 	
 	#links
 	while True:
@@ -547,6 +555,12 @@ def make_new_tag():
 	t_id = write_new_tag_to_list([(tag,)])
 	return (t_id, tag)
 
+#▒▒▒▒▒▒▒▒▒▒▒▒ EDITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def edit_main_z_title(z_id, z_title):
+	print('write new title')
+	new_title = write_with_editor(z_title)
+	rewrite_main_z_title(z_id, new_title)
+	
 #▒▒▒▒▒▒▒▒▒▒▒▒ SEARCH OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def search_zettels():
 	flag = ''
@@ -583,12 +597,12 @@ def search_tags():
 	list_selected_tags(entries)
 	return entries
 	
-def print_found_zettels(entry, val):
-	z_title = entry[1]
-	z_id = entry[0]
+def print_found_zettels(zettel, val):
+	z_title = zettel[1]
+	z_id = zettel[0]
 	print('selected:', str(val)+'.', z_title)
 	print_zettel_ops()
-	zettel_ops(z_id, z_title)
+	zettel_ops(zettel)
 
 def print_found_tags(entry, val):
 	tag = entry[1]
@@ -629,7 +643,7 @@ def zettel_sub_menu(s):
 	try: 
 		print_found_zettels(s['entries'][int(inp)-1], int(inp))
 		s['found'] = s['entries'][int(inp)-1]
-	except ValueError: pass
+	except (ValueError, IndexError): pass
 	finally:
 		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_main_all() #reset
 		if inp == "q": s['stop'] = True
@@ -641,7 +655,7 @@ def tag_sub_menu(s):
 	try: 
 		print_found_tags(s['entries'][int(inp)-1], int(inp))
 		s['found'] = s['entries'][int(inp)-1]
-	except ValueError: pass
+	except (ValueError, IndexError): pass
 	finally:
 		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_taglist_all() #reset
 		elif inp == "q": s['stop'] = True
@@ -973,12 +987,15 @@ def git_menu():
 		elif inp == "u": git_launch_gitui()
 		elif inp == "q": break
 		
-def zettel_ops(z_id, z_path):
+def zettel_ops(zettel):
+	z_title = zettel[1]
+	z_id = zettel[0]
 	print_zettel_ops()
 	while True:
 		inp = c_prompt('ZETTEL')
 		print_whole_zettel(z_id); print_zettel_ops()
 		if inp == 'q': return
+		elif inp == 't': edit_main_z_title(z_id, z_title)
 		
 def tag_ops(tag_id, tag):
 	zettel_entries = list_by_tag(tag_id); print_tag_ops()
@@ -1156,6 +1173,7 @@ def print_search_zettel_commands():
 
 def print_zettel_ops():
 	divider()
+	print('(t) - change zettel title')
 	print('(q) - return to previous menu (confirms selection)')
 	
 #SEARCHING TAGS
