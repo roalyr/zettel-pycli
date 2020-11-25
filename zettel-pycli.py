@@ -2,10 +2,21 @@
 database_name = "my_vault" # default name for new databases
 default_editor = "python" # a text editor command to call by default
 # use "python" to disable prompt and always use native input
-sort_tags = True # if true - sorts alphabetically
-sort_titles = False # if true - sorts alphabetically
-draw_tags_in_line = True # if false - print tags in column
-draw_titles_in_line = False # if false - print titles in column
+zettel_sort_tags = True # if true - sorts alphabetically
+zettel_sort_links = True # if true - sorts alphabetically
+
+zettel_draw_tags_in_line = False # if false - print tags in column in zettel
+zettel_draw_links_in_line = False # if false - print tags in column in zettel
+zettel_numerate_links = False # draw numbers near each entry
+zettel_numerate_tags = False # draw numbers near each entry
+
+search_sort_tags = False # if true - sorts alphabetically
+search_sort_titles = False # if true - sorts alphabetically
+
+search_draw_titles_in_line = False # if false - print titles in column in search
+search_draw_tags_in_line = True # if false - print tags in column in zettel
+search_numerate_titles = True # draw numbers near each entry
+search_numerate_tags = True # draw numbers near each entry
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CREDITS & LICENCE ▒▒▒▒▒▒▒▒▒▒▒▒▒
 # https://writingcooperative.com/zettelkasten-how-one-german-
@@ -34,7 +45,8 @@ draw_titles_in_line = False # if false - print titles in column
 
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CONSTANTS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-import os, fnmatch, shutil, pathlib, sqlite3, time, re, random, tempfile, subprocess, py_compile
+import os, fnmatch, shutil, pathlib, sqlite3, time, re, random, tempfile
+import subprocess, py_compile, gc
 from sqlite3 import Error
 
 path = os.path.join(os.getcwd(), database_name)
@@ -189,8 +201,13 @@ def read_whole_zettel(z_id):
 	except IndexError: 
 		title ='<no title / corrupted title>';
 		body ='<no text body / corrupted text body>'
-	tags = str(read_tags_z_id(z_id)) 
-	links_from = str(read_links_z_id_from(z_id))
+	tag_entries = read_tags_z_id(z_id)
+	links_from_entries = read_links_z_id_from(z_id)
+	tags = str_from_list(zettel_sort_tags, zettel_draw_tags_in_line, 
+		zettel_numerate_tags, tag_entries, 2)
+	links_from = str_from_list(zettel_sort_links, zettel_draw_tags_in_line,
+		zettel_numerate_links, links_from_entries, 1)
+	
 	return marker_title + '\n' + title + '\n\n' \
 	+ marker_body+ '\n' + body + '\n\n' \
 	+ marker_tags+ '\n' + tags + '\n\n' \
@@ -363,10 +380,6 @@ def edit_tags_z_id(z_id): #zettel ops only
 	rewrite_tags(z_id, tags)
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYZE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def tree():
-	#str
-	os.system('tree'+' '+path)
-	
 def review():
 	print_start_check(); errors = False
 	if not os.path.isfile(current_db_path): print_no_db_warn(); return
@@ -409,12 +422,15 @@ def zettel_ops(zettel, allow_submenu):
 		inp = c_prompt('')
 		if sub_menu_depth < 2:
 			if inp == 'q': sub_menu_depth -= 1; return
+			elif inp == 'qm': main_menu()
 			elif inp == 'n': edit_main_z_title(z_id, z_title)
+			elif inp == 'f': follow_links_z_id_from(z_id, z_title)
 			elif inp == 'b': edit_main_z_body(z_id, z_body)
 			elif inp == 'l': edit_links_z_id_from(z_id)
 			elif inp == 't': edit_tags_z_id(z_id)
 		else:
 			if inp == 'q': sub_menu_depth -= 1; return
+			elif inp == 'qm': main_menu()
 		print_whole_zettel(z_id); 
 		if sub_menu_depth < 2: print_zettel_ops()
 		else: print_zettel_ops_lim()
@@ -428,14 +444,13 @@ def tag_ops(tag):
 		print_zettels_under_tag(titles, listed_tag)
 		if zettel_select_sub_menu(zettels): return
 		
-			
 def main_menu():
 	global sub_menu_depth
 	print_main_ops()
 	while True:
 		sub_menu_depth = 0
 		inp = c_prompt('MENU')
-		if inp == "i": print_db_meta(); p()
+		if inp == "i": print_db_meta(); list_by_links_z_id_from(10), p()
 		elif inp == "n": make_new_zettel(); p()
 		elif inp == "z": search_zettels(); 
 		elif inp == "t": search_tags(); 
@@ -451,15 +466,23 @@ def main_menu():
 		print_main_ops()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ SEARCH OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def follow_links_z_id_from(z_id, z_title):
+	result = list_by_links_z_id_from(z_id)
+	zettels = result[0]; titles = result[1]
+	while True:
+		print_zettels_links_z_id_from(titles, z_title)
+		if zettel_select_sub_menu(zettels): return
+	
 def search_zettels():
 	flag = ''
 	while True:
 		print_how_to_search_zettel()
 		inp = c_prompt('')
 		if inp == 'n': flag = 'name'; break
-		if inp == 't': flag = 'tag'; break
-		if inp == 'b': flag = 'body'; break
-		if inp == 'q': return
+		elif inp == 't': flag = 'tag'; break
+		elif inp == 'b': flag = 'body'; break
+		elif inp == 'q': return
+		elif inp == 'qm': main_menu()
 	entries = []
 	while True:
 		s = find_zettel(flag)
@@ -470,10 +493,11 @@ def search_zettels():
 			print_zettel_search_confirmation(entries)
 			inp = c_prompt('search for more?')
 			if inp == 'q': break
-			if inp == 'n': flag = 'name'
-			if inp == 't': flag = 'tag'
-			if inp == 'b': flag = 'body'
-			if inp == 'c': entries = []
+			elif inp == 'n': flag = 'name'
+			elif inp == 't': flag = 'tag'
+			elif inp == 'b': flag = 'body'
+			elif inp == 'c': entries = []
+			elif inp == 'qm': main_menu()
 	entries = list(dict.fromkeys(entries)) #dedup
 	return entries
 	
@@ -488,7 +512,8 @@ def search_tags():
 			print_tag_search_confirmation(entries)
 			inp = c_prompt('search for more?')
 			if inp == 'q': break
-			if inp == 'c': entries = []
+			elif inp == 'qm': main_menu()
+			elif inp == 'c': entries = []
 	entries = list(dict.fromkeys(entries)) #dedup
 	return entries
 
@@ -502,6 +527,7 @@ def zettel_select_sub_menu(zettels): #when zettel list provided
 		zettel_ops(zettel, True)
 	except (ValueError, IndexError): pass
 	if inp == "q": return True
+	elif inp == 'qm': main_menu()
 
 def zettel_search_sub_menu(s):
 	print_search_zettel_commands()
@@ -512,7 +538,8 @@ def zettel_search_sub_menu(s):
 	except (ValueError, IndexError): pass
 	finally:
 		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_main_all() #reset
-		if inp == "q": s['stop'] = True
+		elif inp == "q": s['stop'] = True
+		elif inp == 'qm': main_menu()
 	return s
 	
 def tag_search_sub_menu(s):
@@ -526,6 +553,7 @@ def tag_search_sub_menu(s):
 		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_taglist_all() #reset
 		elif inp == "q": s['stop'] = True
 		elif inp == "n": s['found'] = make_new_tag()
+		elif inp == 'qm': main_menu()
 	return s
 
 def find_zettel(flag):
@@ -581,19 +609,30 @@ def list_by_tag(tag_id):
 		titles.append(z_title)
 	return (tagged_zettels, titles, listed_tag,)
 	
-def str_from_list(sort_flag, draw_flag, enumerate, init, i):
+def list_by_links_z_id_from(z_id):
+	titles = []; linked_zettels = []
+	links = read_links_z_id_from(z_id)
+	for link in links:
+		z_id_to = link[2]
+		zettels = read_main_id(z_id_to)
+		z_title = zettels[0][1]
+		linked_zettels.append(zettels[0])
+		titles.append(z_title)
+	return (linked_zettels, titles,)
+
+def str_from_list(sort_flag, draw_flag, numerate, init, i):
 	strn = ''; fin = []; num = 1; dot = '. ';
 	for entry in init: fin.append(entry[i])
 	if sort_flag: fin.sort()
 	if draw_flag:
 		le = ', '
-		if enumerate:
+		if numerate:
 			for entry in fin: strn += str(num)+dot+str(entry)+le; num += 1
 		else:
 			for entry in fin: strn += str(entry) + le
 	else:
 		le = '\n'
-		if enumerate:
+		if numerate:
 			for entry in fin: strn += str(num)+dot+str(entry)+le; num += 1
 		else:
 			for entry in fin: strn += str(entry) + le
@@ -1052,9 +1091,8 @@ def print_main_ops():
 	print('(t) - browse tags in the database')
 	print('(r) - review zettels for errors in links and content')
 	print('(n) - start writing a new zettel')
-	print('(tree) - use "tree" command to show files')
 	print('(init) - make a new database (name in script header)')
-	print('(temp) - generate a template zettel')
+	print('(temp) - generate a template .md zettel')
 	print('(test) - generate a batch of test zettels')
 	print('(import) - import .md zettels to the database')
 	print('(compile) - compile this .py into .pyc for safety')
@@ -1101,29 +1139,35 @@ def print_how_to_search_zettel():
 	print('(t) - by tag')
 	print('(b) - by text body')
 	print_q()
+	print_qm()
 
 def print_search_zettel_commands():
 	divider()
 	print("'number' - select entry")
 	print("(c) - clear search query and start again")
 	print_qc()
+	print_qm()
 	
 def print_select_zettel_commands():
 	divider()
 	print("'number' - inspect entry")
 	print_qc()
+	print_qm()
 
 def print_zettel_ops():
 	divider()
+	print('(f) - follow the links to zettels')
 	print('(n) - edit title (name)')
 	print('(b) - edit text body')
 	print('(l) - edit links')
 	print('(t) - edit tags')
 	print_qc()
+	print_qm()
 	
 def print_zettel_ops_lim():
 	divider()
 	print_qc()
+	print_qm()
 	
 #SEARCHING TAGS
 def print_search_tag_commands():
@@ -1132,14 +1176,7 @@ def print_search_tag_commands():
 	print('(n) - add a new tag not from list')
 	print("(c) - clear search query and start again")
 	print_qc()
-	
-def print_tag_ops():
-	divider()
-	print_qc()
-	
-def print_tag_ops_lim():
-	divider()
-	print_qc()
+	print_qm()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ OTHER PRINTING ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def print_db_meta(db_path=current_db_path):
@@ -1170,19 +1207,22 @@ def print_whole_zettel(z_id):
 	
 def print_all_tags():
 	enumerate = False
-	strn = str_from_list(sort_tags, draw_tags_in_line, enumerate, read_taglist_all(), 1)
+	strn = str_from_list(search_sort_tags, search_draw_tags_in_line,
+		search_numerate_tags, read_taglist_all(), 1)
 	divider()
 	print('available tags:'); print(strn);
 
 def print_selected_zettels(entries):
 	enumerate = True
-	strn = str_from_list(sort_titles, draw_titles_in_line, enumerate, entries, 1)
+	strn = str_from_list(search_sort_titles, search_draw_titles_in_line,
+		search_numerate_titles, entries, 1)
 	cl_divider()
 	print('viewed | selected zettels:'); print(strn)
 	
 def print_selected_tags(entries):
 	enumerate = True
-	strn = str_from_list(sort_tags, draw_tags_in_line, enumerate, entries, 1)
+	strn = str_from_list(search_sort_tags, search_draw_tags_in_line,
+		search_numerate_tags, entries, 1)
 	cl_divider()
 	print('viewed | selected tags:'); print(strn);
 
@@ -1195,6 +1235,7 @@ def print_zettel_search_confirmation(entries):
 	print('(b) - switch to search by text body')
 	print('(c) - clear search queue and restart search')
 	print_qc()
+	print_qm()
 	
 def print_tag_search_confirmation(entries):
 	print_selected_tags(entries)
@@ -1202,6 +1243,7 @@ def print_tag_search_confirmation(entries):
 	print('() - resume search')
 	print('(c) - clear search queue and restart search')
 	print_qc()
+	print_qm()
 	
 def print_found_zettels(zettel, val): print('selected:', str(val)+'.', zettel[1])
 def print_found_tags(tag, val): print('selected:', str(val)+'.', tag[1])
@@ -1244,6 +1286,15 @@ def print_zettels_under_tag(titles, tag):
 		num += 1
 	print('\nzettels under tag:', tag, '-', len(titles))
 	
+def print_zettels_links_z_id_from(titles, current_title):
+	num = 1
+	cl_divider()
+	for title in titles:
+		print(str(num)+'.', title)
+		num += 1
+	print('\nzettels linked by:', current_title, '-', len(titles))
+	
+
 def print_invalid_links():
 	entries = read_invalid_links_all()
 	if entries == []: return False
@@ -1284,6 +1335,7 @@ def s_prompt(prompt): divider(); return input(prompt+" > ").strip()
 def p(): divider(); input("enter to continue...").strip()
 def print_qc(): print('(q) - return | confirms selection')
 def print_q(): print('(q) - return')
+def print_qm(): print('(qm) - return to main menu | abort everything')
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CLEAR SCREEN AND DIVIDER ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def divider(): 
