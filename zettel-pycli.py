@@ -302,7 +302,8 @@ def write_with_editor(inject_text):
 		elif inp == "qm": main_menu()
 	
 def make_new_zettel():
-	global sub_menu_depth; sub_menu_depth += 1
+	global allow_submenu
+	allow_submenu = False
 	print_title_select(); p()
 	z_title = write_not_empty(None)
 	print_body_select(); p()
@@ -311,6 +312,7 @@ def make_new_zettel():
 	zettels_linked = zettel_picker()
 	print_tags_select(); p()
 	tags = tag_picker()
+	allow_submenu = True
 	#generate filename for export feature
 	path_length = 30
 	z_path = z_title
@@ -365,6 +367,7 @@ def edit_links_z_id_from(z_id):
 	global allow_submenu
 	allow_submenu = False
 	zettels = zettel_picker()
+	allow_submenu = True
 	rewrite_links_from(z_id, zettels)
 	
 def edit_tags_z_id(z_id): #zettel ops only
@@ -372,6 +375,7 @@ def edit_tags_z_id(z_id): #zettel ops only
 	global allow_submenu
 	allow_submenu = False
 	tags = tag_picker()
+	allow_submenu = True
 	rewrite_tags(z_id, tags)
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYZE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -442,10 +446,10 @@ def tag_ops(tag):
 		if zettel_select_sub_menu(zettels): return
 		
 def main_menu():
-	global sub_menu_depth
+	global allow_submenu
+	allow_submenu = True
 	print_main_ops()
 	while True:
-		sub_menu_depth = 0
 		inp = c_prompt('MENU')
 		if inp == "i": print_db_meta(); list_by_links_z_id_from(10), p()
 		elif inp == "n": make_new_zettel();
