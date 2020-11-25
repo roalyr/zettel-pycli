@@ -201,17 +201,17 @@ def read_whole_zettel(z_id):
 	except IndexError: 
 		title ='<no title / corrupted title>';
 		body ='<no text body / corrupted text body>'
-	tag_entries = read_tags_z_id(z_id)
-	links_from_entries = read_links_z_id_from(z_id)
-	tags = str_from_list(zettel_sort_tags, zettel_draw_tags_in_line, 
-		zettel_numerate_tags, tag_entries, 2)
-	links_from = str_from_list(zettel_sort_links, zettel_draw_tags_in_line,
-		zettel_numerate_links, links_from_entries, 1)
+	tags = read_tags_z_id(z_id)
+	linked_zettels = list_by_links_z_id_from(z_id)[0]
+	tags_str = str_from_list(zettel_sort_tags, zettel_draw_tags_in_line, 
+		zettel_numerate_tags, tags, 2)
+	links_from_str = str_from_list(zettel_sort_links, zettel_draw_tags_in_line,
+		zettel_numerate_links, linked_zettels, 1)
 	
 	return marker_title + '\n' + title + '\n\n' \
 	+ marker_body+ '\n' + body + '\n\n' \
-	+ marker_tags+ '\n' + tags + '\n\n' \
-	+ marker_links+ '\n' + links_from
+	+ marker_tags+ '\n' + tags_str + '\n\n' \
+	+ marker_links+ '\n' + links_from_str
 
 def read_links_z_id_from(z_id): return query_db(z_id, select_links_z_id_from, current_db_path)
 def read_links_z_id_to(z_id): return query_db(z_id, select_links_z_id_to, current_db_path)
@@ -283,6 +283,11 @@ def remove_tags_tag(name): #after zettel removal, or optional
 	rescan_taglist() #removes all instances
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ZETTEL / TAG WRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def write_not_empty(inject_text):
+	name = '';
+	while not name: name = write_with_editor(inject_text)
+	return name
+	
 def write_ext(option, inject_text):
 	written = ''
 	with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
@@ -290,14 +295,20 @@ def write_ext(option, inject_text):
 			try: tf.write(inject_text)
 			except TypeError: tf.write(inject_text.encode("utf-8"))
 			finally: tf.flush()
-		try: subprocess.call([option, tf.name])
-		except: print('no command found:', option); return written #failed
-		finally:
+		try: 
+			subprocess.call([option, tf.name])
 			tf.seek(0); written = tf.read().decode("utf-8")
-	return written.strip() #succeeded
-	
+			return written.strip()
+		except: 
+			print_no_default_editor(option); p(); 
+			return write_fallback(inject_text)
+
+def write_fallback(inject_text):
+	print_fallback_editor(inject_text)
+	return s_prompt('enter text')
+
 def write_with_editor(inject_text):
-	if default_editor == 'python': return s_prompt('enter text')
+	if default_editor == 'python': return write_fallback(inject_text)
 	while True:
 		print_writer_options()
 		inp = c_prompt('select editor')
@@ -305,16 +316,15 @@ def write_with_editor(inject_text):
 		elif inp == 'v': return write_ext('vim', inject_text)
 		elif inp == 'n': return write_ext('nano', inject_text)
 		elif inp == 'e': return write_ext('emacs', inject_text)
-		elif inp == 'i': return s_prompt('enter text')
-		elif inp == "q": return None
+		elif inp == 'i': return write_fallback(inject_text)
+		elif inp == "qm": main_menu()
 	
 def make_new_zettel():
 	global sub_menu_depth; sub_menu_depth += 1
-	z_title = ''
-	z_body = ''
-	while not z_title: z_title = write_with_editor(None)
-	while not z_body: z_body = write_with_editor(None)
-	
+	print_title_select(); p()
+	z_title = write_not_empty(None)
+	print_body_select(); p()
+	z_body = write_not_empty(None)
 	print_zettels_select(); p()
 	zettels_linked = zettel_picker()
 	print_tags_select(); p()
@@ -332,12 +342,12 @@ def make_new_zettel():
 	write_links_from(z_id, zettels_linked)
 	#update meta
 	#find it and enter ops sub menu
+	print_new_zettel_preview(); p()
 	new_zettel = read_main_id(z_id)[0]
 	zettel_ops(new_zettel, False)
 
 def make_new_tag():
-	tag = ''; conf = ''
-	while not tag: tag = write_with_editor(None)
+	conf = ''; tag = write_not_empty(None)
 	while conf =='':
 		print('New tag:', tag)
 		conf = c_prompt('is this correct?')
@@ -348,25 +358,25 @@ def make_new_tag():
 def zettel_picker(): #add ops to edit the list properly
 	zettels = [] 
 	try: zettels += search_zettels()
-	except NameError: pass
+	except TypeError: pass
 	return zettels
 	
 def tag_picker(): #add ops to edit the list properly
 	tags = [] 
 	try: tags += search_tags()
-	except NameError: pass
+	except TypeError: pass
 	return tags
 	
-def edit_main_z_title(z_id, z_title):
+def edit_main_z_title(z_id):
 	print('write new title')
-	new_title = ''
-	while not new_title: new_title = write_with_editor(z_title)
+	z_title = read_main_id(z_id)[0][1]
+	new_title = write_not_empty(z_title)
 	rewrite_main_z_title(z_id, new_title)
 	
-def edit_main_z_body(z_id, z_body):
+def edit_main_z_body(z_id):
 	print('write new body')
-	new_body = ''
-	while not new_body: new_body = write_with_editor(new_body)
+	z_body = read_main_id(z_id)[0][3]
+	new_body = write_not_empty(z_body)
 	rewrite_main_z_body(z_id, new_body)
 	
 def edit_links_z_id_from(z_id):
@@ -423,9 +433,9 @@ def zettel_ops(zettel, allow_submenu):
 		if sub_menu_depth < 2:
 			if inp == 'q': sub_menu_depth -= 1; return
 			elif inp == 'qm': main_menu()
-			elif inp == 'n': edit_main_z_title(z_id, z_title)
-			elif inp == 'f': follow_links_z_id_from(z_id, z_title)
-			elif inp == 'b': edit_main_z_body(z_id, z_body)
+			elif inp == 'n': edit_main_z_title(z_id)
+			elif inp == 'f': follow_links_z_id_from(z_id)
+			elif inp == 'b': edit_main_z_body(z_id)
 			elif inp == 'l': edit_links_z_id_from(z_id)
 			elif inp == 't': edit_tags_z_id(z_id)
 		else:
@@ -451,7 +461,7 @@ def main_menu():
 		sub_menu_depth = 0
 		inp = c_prompt('MENU')
 		if inp == "i": print_db_meta(); list_by_links_z_id_from(10), p()
-		elif inp == "n": make_new_zettel(); p()
+		elif inp == "n": make_new_zettel();
 		elif inp == "z": search_zettels(); 
 		elif inp == "t": search_tags(); 
 		elif inp == "r": review(); p()
@@ -466,7 +476,8 @@ def main_menu():
 		print_main_ops()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ SEARCH OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def follow_links_z_id_from(z_id, z_title):
+def follow_links_z_id_from(z_id):
+	z_title = read_main_id(z_id)[0][1]
 	result = list_by_links_z_id_from(z_id)
 	zettels = result[0]; titles = result[1]
 	while True:
@@ -621,21 +632,25 @@ def list_by_links_z_id_from(z_id):
 	return (linked_zettels, titles,)
 
 def str_from_list(sort_flag, draw_flag, numerate, init, i):
-	strn = ''; fin = []; num = 1; dot = '. ';
+	def process(fin, numerate, le):
+		strn = ''; num = 1; dot = '. '; i = 0
+		for entry in fin: 
+			if numerate:
+				if not i == len(fin)-1: strn += str(num)+dot+str(entry)+le; num += 1
+				else: strn += str(num)+dot+str(entry)+'.' #final symbol control
+			else:
+				if not i == len(fin)-1: strn += str(entry)+le; num += 1
+				else: strn += str(entry)+'.' #final symbol control
+			i += 1
+		return strn
+	
+	fin = []; 
 	for entry in init: fin.append(entry[i])
 	if sort_flag: fin.sort()
 	if draw_flag:
-		le = ', '
-		if numerate:
-			for entry in fin: strn += str(num)+dot+str(entry)+le; num += 1
-		else:
-			for entry in fin: strn += str(entry) + le
+		strn = process(fin, numerate, ', ')
 	else:
-		le = '\n'
-		if numerate:
-			for entry in fin: strn += str(num)+dot+str(entry)+le; num += 1
-		else:
-			for entry in fin: strn += str(entry) + le
+		strn = process(fin, numerate, ',\n')
 	return strn
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ GIT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -762,8 +777,8 @@ def incr_add_to_db(entry_list, exec_line, db_path):
 			return id
 
 def import_to_db():
-	print_importing_warn()
-	inp = s_prompt('local folder name')
+	print_importing_warn(); p()
+	inp = write_not_empty(None)
 	if not os.path.isdir(inp):
 		print_importing_failed(); return #failed
 	dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
@@ -858,11 +873,13 @@ def import_to_db():
 			conn.close()
 			
 def init_new_db():
-	#check and abort
-	if os.path.isfile(current_db_path): print_db_exists(); return
+	print_init_new_db(); p()
+	database_name = write_not_empty(None)
+	new_db_path = os.path.join(os.getcwd(), database_name + '.db')
+	if os.path.isfile(new_db_path): print_db_exists(); return
 	dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
 	conn = None
-	try: conn = sqlite3.connect(current_db_path)
+	try: conn = sqlite3.connect(new_db_path)
 	except Error as e: print(e)
 	finally:
 		if conn:
@@ -877,9 +894,9 @@ def init_new_db():
 				#write meta
 				c.execute(insert_meta, (database_name, dt_str, 0, 0, 0, 0, 0, 0, 0,))
 				conn.commit()
-				print_db_meta(database_name)
 			except Error as e: print(e)
 			conn.close()
+			print_db_meta(new_db_path)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ FILE & TEST OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def compile_myself():
@@ -1042,6 +1059,13 @@ def print_invalid_links_not_removed(): divider(); print('invalid links warnings 
 def print_invalid_links_removed(): divider(); print('invalid links warnings are removed')
 
 def print_check_passed(): divider(); print('all good, no corrupt links or unlinked zettels')
+
+def print_init_new_db():
+	cl_divider()
+	print('you are about to create an empty database')
+	print('the new database will be created in current folder')
+	print('please enter a unique name for it')
+
 def print_db_exists(): cl_divider(); print('a database like this already exists, aborting')
 def print_importing_warn():
 	cl_divider()
@@ -1076,6 +1100,19 @@ def print_made_tests():
 	print("don't forget to import them into the database")
 
 #WRITING ZETTEL
+def print_no_default_editor(option): 
+	cl_divider(); 
+	print('unable to use default editor:', option)
+	print('will switch to standard python input')
+	
+def print_fallback_editor(inject_text): 
+	cl_divider(); 
+	print('using default python input method')
+	if inject_text:
+		divider()
+		print('current text field:')
+		print(inject_text)
+		
 def print_zettels_select(): cl_divider(); print('select zettels that you want to LINK to')
 def print_tags_select():
 	cl_divider()
@@ -1083,6 +1120,20 @@ def print_tags_select():
 	print('you can either search for existing tag')
 	print('or write a new one if no suitable found')
 
+def print_title_select():
+	cl_divider()
+	print('select a suitable TITLE for your zettel')
+	print('it must not be empty')
+
+def print_body_select():
+	cl_divider()
+	print('enter the TEXT BODY of the zettel')
+	print('it must not be empty')
+
+def print_new_zettel_preview():
+	cl_divider()
+	print('you can now preview and edit your new zettel')
+	
 #MAIN MENU
 def print_main_ops():
 	cl_divider()
@@ -1123,6 +1174,7 @@ def print_writer_options():
 	print('(e) - write using emacs')
 	print('(n) - write using nano')
 	print('(i) - fallback write with python input')
+	print_qm()
 	
 #SEARCHING
 def print_searching():
@@ -1332,7 +1384,7 @@ def print_zettels_warnings(query, exec_str): #for other kinds of errors
 #▒▒▒▒▒▒▒▒▒▒▒▒ STANDARD PROMPTS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def c_prompt(prompt): divider(); return input(prompt+" : ").strip()
 def s_prompt(prompt): divider(); return input(prompt+" > ").strip()
-def p(): divider(); input("enter to continue...").strip()
+def p(): divider(); input("░░░░░░░░░░░░░░░░░░░░░░ CONTINUE ░░░░░░░░░░░░░░░░░░░░░░").strip()
 def print_qc(): print('(q) - return | confirms selection')
 def print_q(): print('(q) - return')
 def print_qm(): print('(qm) - return to main menu | abort everything')
