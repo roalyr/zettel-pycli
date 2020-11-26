@@ -1,6 +1,6 @@
 #▒▒▒▒▒▒▒▒▒▒▒▒ USER OPTIONS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 database_name = "my_vault" # default name for new databases
-default_editor = "python" # a text editor command to call by default
+default_editor = "nano" # a text editor command to call by default
 # use "python" to disable prompt and always use native input
 zettel_sort_tags = True # if true - sorts alphabetically
 zettel_sort_links = True # if true - sorts alphabetically
@@ -69,9 +69,8 @@ create_meta_table = '''
 		id integer PRIMARY KEY,
 		db_name text NOT NULL, datetime text NOT NULL,
 		tot_zettels integer NOT NULL, tot_links integer NOT NULL,
-		tot_invalid_links integer NOT NULL, tot_no_links integer NOT NULL,
-		tot_self_links integer NOT NULL, tot_no_bodies integer NOT NULL,
-		tot_no_titles integer NOT NULL
+		tot_no_links integer NOT NULL, tot_self_links integer NOT NULL,
+		tot_no_bodies integer NOT NULL, tot_no_titles integer NOT NULL
 	); '''
 create_main_table = '''
 	CREATE TABLE IF NOT EXISTS main (
@@ -82,11 +81,6 @@ create_links_table = '''
 	CREATE TABLE IF NOT EXISTS links (
 		id integer PRIMARY KEY,
 		z_id_from integer NOT NULL, z_id_to integer NOT NULL
-	); '''
-create_invalid_links_table = '''
-	CREATE TABLE IF NOT EXISTS invalid_links (
-		id integer PRIMARY KEY,
-		z_id_from integer NOT NULL, link_name text NOT NULL
 	); '''
 create_no_links_table = '''
 	CREATE TABLE IF NOT EXISTS no_links (
@@ -116,7 +110,6 @@ create_taglist_table = '''
 #INSTERT
 insert_main = '''INSERT INTO main ( z_title, z_path, z_body ) VALUES ( ?, ?, ? ) '''
 insert_links = '''INSERT INTO links ( z_id_from, z_id_to ) VALUES ( ?, ? ) '''
-insert_invalid_links = '''INSERT INTO invalid_links ( z_id_from, link_name ) VALUES ( ?, ? ) '''
 insert_self_links = '''INSERT INTO self_links ( z_id_from ) VALUES ( ? ) '''
 insert_no_links = '''INSERT INTO no_links ( z_id_from ) VALUES ( ? ) '''
 insert_no_bodies = '''INSERT INTO no_bodies ( z_id_from ) VALUES ( ? ) '''
@@ -125,11 +118,13 @@ insert_tags = '''INSERT INTO tags ( z_id, tag ) VALUES ( ?, ? ) '''
 insert_taglist = '''INSERT OR IGNORE INTO taglist ( tag ) VALUES ( ? ) ''' 
 insert_meta = '''
 	INSERT INTO meta (
-		db_name, datetime, tot_zettels, tot_links, tot_invalid_links,
+		db_name, datetime, tot_zettels, tot_links,
 		tot_no_links, tot_self_links, tot_no_bodies, tot_no_titles
-	) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ? ) ''' #add tags num
+	) VALUES ( ?, ?, ?, ?, ?, ?, ?, ? ) ''' #add tags num
 
 #SELECT
+select_meta_all = "SELECT * FROM meta"
+
 select_main_id = "SELECT * FROM main WHERE id = ?"
 select_main_z_path = "SELECT * FROM main WHERE z_path = ?"
 select_main_all = "SELECT * FROM main"
@@ -137,7 +132,6 @@ select_main_z_title_like = "SELECT * FROM main WHERE z_title LIKE ? "
 select_main_z_body_like = "SELECT * FROM main WHERE z_body LIKE ? "
 select_main_z_path_like = "SELECT * FROM main WHERE z_path LIKE ? "
 
-select_invalid_links_all = "SELECT * FROM invalid_links"
 select_self_links_all = "SELECT * FROM self_links"
 select_no_links_all = "SELECT * FROM no_links"
 select_no_bodies_all = "SELECT * FROM no_bodies"
@@ -148,9 +142,11 @@ select_taglist_all = "SELECT * FROM taglist"
 select_taglist_tag_like = "SELECT * FROM taglist WHERE tag LIKE ? "
 
 select_tags_z_id = "SELECT * FROM tags WHERE z_id = ?"
+select_tags_all = "SELECT * FROM tags"
 select_tags_all_dist = "SELECT DISTINCT * FROM tags"
 select_tags_tag_like = "SELECT * FROM tags WHERE tag LIKE ? "
 
+select_links_all = "SELECT * FROM links"
 select_links_z_id_from = "SELECT * FROM links WHERE z_id_from = ?"
 select_links_z_id_to = "SELECT * FROM links WHERE z_id_to = ?"
 
@@ -161,9 +157,14 @@ update_main_z_title = 'UPDATE main SET z_title = ? WHERE id = ?'
 update_tags_tag = 'UPDATE tags SET tag = ? WHERE tag = ?'
 
 #DELETE
+delete_meta_all = "DELETE FROM meta"
+
 delete_taglist_all = "DELETE FROM taglist"
 
-delete_invalid_links_all = "DELETE FROM invalid_links"
+delete_self_links_all = "DELETE FROM self_links"
+delete_no_links_all = "DELETE FROM no_links"
+delete_no_titles_all = "DELETE FROM no_titles"
+delete_no_bodies_all = "DELETE FROM no_bodies"
 
 delete_tags_z_id = "DELETE FROM tags WHERE z_id = ?"
 delete_tags_tag = "DELETE FROM tags WHERE tag = ?"
@@ -195,15 +196,15 @@ def write_links_from(z_id, zettels):
 	incr_add_to_db(entry_list, insert_links, current_db_path)
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ READING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def read_links_all(): return query_db(None, select_links_all, current_db_path)
 def read_links_z_id_from(z_id): return query_db(z_id, select_links_z_id_from, current_db_path)
 def read_links_z_id_to(z_id): return query_db(z_id, select_links_z_id_to, current_db_path)
-
-def read_invalid_links_all(): return query_db(None, select_invalid_links_all, current_db_path)
 
 def read_taglist_id(id): return query_db(id, select_taglist_id, current_db_path)[0] #only one tag
 def read_taglist_all(): return query_db(None, select_taglist_all, current_db_path)
 def read_taglist_tags_like(name): return query_db('%'+name+'%', select_taglist_tag_like, current_db_path)
 
+def read_tags_all(): return query_db(None, select_tags_all, current_db_path)
 def read_tags_all_dist(): return query_db(None, select_tags_all_dist, current_db_path)
 def read_tags_z_id(z_id): return query_db(z_id, select_tags_z_id, current_db_path)
 def read_tags_tag_like(name): return query_db('%'+name+'%', select_tags_tag_like, current_db_path)
@@ -214,6 +215,8 @@ def read_main_all(): return query_db(None, select_main_all, current_db_path)
 def read_main_z_title_like(name): return query_db('%'+name+'%', select_main_z_title_like, current_db_path)
 def read_main_z_path_like(name): return query_db('%'+name+'%', select_main_z_path_like, current_db_path)
 def read_main_z_body_like(name): return query_db('%'+name+'%', select_main_z_body_like, current_db_path)
+
+def read_meta_all(db_name): return query_db(None, select_meta_all, db_name)[0] #only one zettel
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ REWRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 #called by 'edit' functions
@@ -245,10 +248,38 @@ def rescan_taglist(): #after tag edit
 	incr_add_to_db(tags, insert_taglist, current_db_path)
 	
 def rescan_meta(): #after any edit
-	print()
-
-def remove_invalid_links_all(): #after zettel removal, or optional
-	delete_from_db(None, delete_invalid_links_all, current_db_path)
+	delete_from_db(None, delete_meta_all, current_db_path)
+	delete_from_db(None, delete_self_links_all, current_db_path)
+	delete_from_db(None, delete_no_links_all, current_db_path)
+	delete_from_db(None, delete_no_titles_all, current_db_path)
+	delete_from_db(None, delete_no_bodies_all, current_db_path)
+	dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
+	zettels = read_main_all()
+	links = read_links_all()
+	tags = read_tags_all()
+	tot_zettels = len(zettels)
+	tot_links = len(links)
+	tot_no_bodies = 0
+	tot_no_titles = 0
+	tot_no_links = 0
+	tot_self_links = 0
+	for zettel in zettels:
+		if not zettel[1]: tot_no_titles += 1
+		if not zettel[3]: tot_no_bodies += 1
+		if not read_links_z_id_from(zettel[0]): tot_no_links += 1
+	for link in links:
+		if link[1] == link[2]: tot_self_links += 1
+	metadata = [
+		database_name, #
+		dt_str, #
+		tot_zettels, #
+		tot_links, #
+		tot_no_links, #
+		tot_self_links, #
+		tot_no_bodies, #
+		tot_no_titles, #
+	]
+	add_to_db(metadata, insert_meta, current_db_path)
 
 def remove_links_from(z_id): #after zettel removal, or optional
 	delete_from_db(z_id, delete_links_z_id_from, current_db_path)
@@ -265,11 +296,20 @@ def remove_tags_tag(name): #after zettel removal, or optional
 	rescan_taglist() #removes all instances
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ZETTEL / TAG WRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def write_not_empty(inject_text):
+def write_not_empty(inject_text, flag):
 	name = '';
-	while not name: name = write_with_editor(inject_text)
+	while not name: 
+		if not flag == 'prompt': name = write_with_editor(inject_text)
+		else: name = write_fallback(inject_text)
+		if name =='': 
+			print_abort_writing()
+			if c_prompt('') == 'qm': main_menu()
 	return name
-	
+
+def write_with_editor(inject_text):
+	if default_editor == 'python': return write_fallback(inject_text)
+	else: return write_ext(default_editor, inject_text)
+
 def write_ext(option, inject_text):
 	written = ''
 	with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
@@ -288,26 +328,14 @@ def write_ext(option, inject_text):
 def write_fallback(inject_text):
 	print_fallback_editor(inject_text)
 	return s_prompt('enter text')
-
-def write_with_editor(inject_text):
-	if default_editor == 'python': return write_fallback(inject_text)
-	while True:
-		print_writer_options()
-		inp = c_prompt('select editor')
-		if inp == '': return write_ext(default_editor, inject_text)
-		elif inp == 'v': return write_ext('vim', inject_text)
-		elif inp == 'n': return write_ext('nano', inject_text)
-		elif inp == 'e': return write_ext('emacs', inject_text)
-		elif inp == 'i': return write_fallback(inject_text)
-		elif inp == "qm": main_menu()
 	
 def make_new_zettel():
 	global allow_submenu
 	allow_submenu = False
 	print_title_select(); p()
-	z_title = write_not_empty(None)
+	z_title = write_not_empty(None, 'prompt')
 	print_body_select(); p()
-	z_body = write_not_empty(None)
+	z_body = write_not_empty(None, '')
 	print_zettels_select(); p()
 	zettels_linked = zettel_picker()
 	print_tags_select(); p()
@@ -330,7 +358,7 @@ def make_new_zettel():
 	zettel_ops(new_zettel)
 
 def make_new_tag():
-	conf = ''; tag = write_not_empty(None)
+	conf = ''; tag = write_not_empty(None, '')
 	while conf =='':
 		print('New tag:', tag)
 		conf = c_prompt('is this correct?')
@@ -353,13 +381,13 @@ def tag_picker(): #add ops to edit the list properly
 def edit_main_z_title(z_id):
 	print('write new title')
 	z_title = read_main_id(z_id)[1]
-	new_title = write_not_empty(z_title)
+	new_title = write_not_empty(z_title, '')
 	rewrite_main_z_title(z_id, new_title)
 	
 def edit_main_z_body(z_id):
 	print('write new body')
 	z_body = read_main_id(z_id)[3]
-	new_body = write_not_empty(z_body)
+	new_body = write_not_empty(z_body, '')
 	rewrite_main_z_body(z_id, new_body)
 	
 def edit_links_z_id_from(z_id):
@@ -379,19 +407,15 @@ def edit_tags_z_id(z_id): #zettel ops only
 	rewrite_tags(z_id, tags)
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYZE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def review():
+def review(): #make an actualcheck
 	print_start_check(); errors = False
 	if not os.path.isfile(current_db_path): print_no_db_warn(); return
 	if print_zettels_warnings(None, select_no_titles_all): print_no_titles_warn(); errors = True
 	if print_zettels_warnings(None, select_no_bodies_all): print_no_bodies_warn(); errors = True
 	if print_zettels_warnings(None, select_no_links_all): print_no_links_warn(); errors = True
 	if print_zettels_warnings(None, select_self_links_all): print_self_links_warn(); errors = True
-	if read_invalid_links_all():
-		print_invalid_links();
-		inp = c_prompt("discard invalid links? ('yes' to proceed)")
-		if inp == 'yes': remove_invalid_links_all(); print_invalid_links_removed()
-		else: print_invalid_links_not_removed(); errors = True
 	if not errors: print_check_passed()
+	p()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ MENU OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def git_menu():
@@ -443,25 +467,63 @@ def tag_ops(tag):
 	zettels = result[0]; titles = result[1]; listed_tag = result[2]
 	while True:
 		print_zettels_under_tag(titles, listed_tag)
-		if zettel_select_sub_menu(zettels): return
-		
+		if zettel_select_ops(zettels): return
+
+def zettel_select_ops(zettels): #when zettel list provided
+	print_select_zettel_ops()
+	zettel = None
+	inp = c_prompt('')
+	try: 
+		zettel = zettels[int(inp)-1]
+		print_found_zettels(zettel, int(inp))
+		zettel_ops(zettel)
+	except (ValueError, IndexError): pass
+	if inp == "q": return True
+	elif inp == 'qm': main_menu()
+
+def zettel_search_ops(s):
+	print_search_zettel_ops()
+	inp = c_prompt('')
+	try: 
+		print_found_zettels(s['entries'][int(inp)-1], int(inp))
+		s['found'] = s['entries'][int(inp)-1]
+	except (ValueError, IndexError): pass
+	finally:
+		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_main_all() #reset
+		elif inp == "q": s['stop'] = True
+		elif inp == 'qm': main_menu()
+	return s
+	
+def tag_search_ops(s):
+	print_search_tag_ops()
+	inp = c_prompt('')
+	try: 
+		print_found_tags(s['entries'][int(inp)-1], int(inp))
+		s['found'] = s['entries'][int(inp)-1]
+	except (ValueError, IndexError): pass
+	finally:
+		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_taglist_all() #reset
+		elif inp == "q": s['stop'] = True
+		elif inp == "n": s['found'] = make_new_tag()
+		elif inp == 'qm': main_menu()
+	return s
+
 def main_menu():
 	global allow_submenu
 	allow_submenu = True
 	print_main_ops()
 	while True:
 		inp = c_prompt('MENU')
-		if inp == "i": print_db_meta(); list_by_links_z_id_from(10), p()
+		if inp == "i": print_db_meta(current_db_path);
 		elif inp == "n": make_new_zettel();
 		elif inp == "z": search_zettels(); 
 		elif inp == "t": search_tags(); 
-		elif inp == "r": review(); p()
-		elif inp == "tree": tree(); p()
-		elif inp == "init": init_new_db(); p()
-		elif inp == "temp": make_template(); p()
-		elif inp == "test": make_test_zettels(); p()
-		elif inp == "import": import_zettels(); p()
-		elif inp == "compile": compile_myself(); p()
+		elif inp == "r": review();
+		elif inp == "init": init_new_db();
+		elif inp == "temp": make_template();
+		elif inp == "test": make_test_zettels();
+		elif inp == "import": import_zettels(); review();
+		elif inp == "compile": compile_myself();
 		elif inp == "git": git_menu(); 
 		elif inp == "q": quit()
 		print_main_ops()
@@ -473,7 +535,7 @@ def follow_links_z_id_from(z_id):
 	zettels = result[0]; titles = result[1]
 	while True:
 		print_zettels_links_z_id_from(titles, z_title)
-		if zettel_select_sub_menu(zettels): return
+		if zettel_select_ops(zettels): return
 	
 def search_zettels():
 	flag = ''
@@ -519,44 +581,6 @@ def search_tags():
 	entries = list(dict.fromkeys(entries)) #dedup
 	return entries
 
-def zettel_select_sub_menu(zettels): #when zettel list provided
-	print_select_zettel_commands()
-	zettel = None
-	inp = c_prompt('')
-	try: 
-		zettel = zettels[int(inp)-1]
-		print_found_zettels(zettel, int(inp))
-		zettel_ops(zettel)
-	except (ValueError, IndexError): pass
-	if inp == "q": return True
-	elif inp == 'qm': main_menu()
-
-def zettel_search_sub_menu(s):
-	print_search_zettel_commands()
-	inp = c_prompt('')
-	try: 
-		print_found_zettels(s['entries'][int(inp)-1], int(inp))
-		s['found'] = s['entries'][int(inp)-1]
-	except (ValueError, IndexError): pass
-	finally:
-		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_main_all() #reset
-		elif inp == "q": s['stop'] = True
-		elif inp == 'qm': main_menu()
-	return s
-	
-def tag_search_sub_menu(s):
-	print_search_tag_commands()
-	inp = c_prompt('')
-	try: 
-		print_found_tags(s['entries'][int(inp)-1], int(inp))
-		s['found'] = s['entries'][int(inp)-1]
-	except (ValueError, IndexError): pass
-	finally:
-		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_taglist_all() #reset
-		elif inp == "q": s['stop'] = True
-		elif inp == "n": s['found'] = make_new_tag()
-		elif inp == 'qm': main_menu()
-	return s
 
 def find_zettel(flag):
 	s = {'found': None, 'name': '', 'inp': '', 'entries': [], 'stop': False}
@@ -577,7 +601,7 @@ def find_zettel(flag):
 			else: s['entries'] = read_main_all() #or show all
 		s['found'] = print_many_zettels_or_return(s['entries'])
 		if s['inp'] == ':': 
-			s = zettel_search_sub_menu(s); 
+			s = zettel_search_ops(s); 
 			if not s['stop']:
 				print_many_zettels_or_return(s['entries']); 
 		if s['found'] or s['stop']: return s
@@ -592,7 +616,7 @@ def find_tags():
 		s['entries'] = read_taglist_tags_like(s['name'])
 		s['found'] = print_many_tags_or_return(s['entries'])
 		if s['inp'] == ':': 
-			s = tag_search_sub_menu(s); 
+			s = tag_search_ops(s); 
 			if not s['stop']:
 				print_many_tags_or_return(s['entries']); 
 		if s['found'] or s['stop']: return s
@@ -786,7 +810,7 @@ def incr_add_to_db(entry_list, exec_line, db_path):
 
 def import_to_db():
 	print_importing_warn(); p()
-	inp = write_not_empty(None)
+	inp = write_not_empty(None, 'prompt')
 	if not os.path.isdir(inp):
 		print_importing_failed(); return #failed
 	dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
@@ -803,12 +827,12 @@ def import_to_db():
 				c = conn.cursor()
 				#create tables
 				c.execute(create_meta_table); c.execute(create_main_table)
-				c.execute(create_links_table); c.execute(create_invalid_links_table)
+				c.execute(create_links_table); 
 				c.execute(create_no_links_table); c.execute(create_self_links_table)
 				c.execute(create_tags_table); c.execute(create_no_bodies_table)
 				c.execute(create_no_titles_table); c.execute(create_taglist_table);
 				#populate tables
-				links = []; tot_links = 0; tot_tags = 0; tot_invalid_links = 0; 
+				links = []; invalid_links = []; tot_links = 0; tot_tags = 0; tot_invalid_links = 0
 				tot_no_links = 0; tot_no_bodies = 0; tot_no_titles = 0; tot_self_links = 0
 				#main table
 				for root, dirs, files in os.walk(path):
@@ -843,6 +867,7 @@ def import_to_db():
 						full_path = os.path.join(root, name)
 						parsed = parse_zettel_metadata(full_path)
 						z_path = name
+						z_title = parsed['title']
 						links = parsed['links']
 						tot_links += len(links)
 						#get the current zettel id
@@ -862,14 +887,14 @@ def import_to_db():
 									c.execute(insert_self_links, (current_zettel_id,))
 									tot_self_links += 1
 							else:
-								c.execute(insert_invalid_links, (current_zettel_id, link_path,))
+								invalid_links.append((current_zettel_id, z_title, z_path, link_path,))
 								tot_invalid_links += 1
 						if links == []:
 							c.execute(insert_no_links, (current_zettel_id,))
 							tot_no_links += 1
 				tot_zettels = len(files)
 				#write meta
-				c.execute(insert_meta, (db_name_imported, dt_str, tot_zettels, tot_links, tot_invalid_links, tot_no_links, 
+				c.execute(insert_meta, (db_name_imported, dt_str, tot_zettels, tot_links, tot_no_links, 
 					tot_self_links, tot_no_bodies, tot_no_titles,))
 				#write all
 				conn.commit()
@@ -877,12 +902,15 @@ def import_to_db():
 				t = time_end - time_start
 				print_db_meta(db_name_imported)
 				print_importing_succeeded(database_name, t)
+				if invalid_links:
+					print_invalid_links(invalid_links)
 			except Error as e: print(e)
 			conn.close()
+			p()
 			
 def init_new_db():
 	print_init_new_db(); p()
-	database_name = write_not_empty(None)
+	database_name = write_not_empty(None, 'prompt')
 	new_db_path = os.path.join(os.getcwd(), database_name + '.db')
 	if os.path.isfile(new_db_path): print_db_exists(); return
 	dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
@@ -895,16 +923,17 @@ def init_new_db():
 				c = conn.cursor()
 				#create tables
 				c.execute(create_meta_table); c.execute(create_main_table)
-				c.execute(create_links_table); c.execute(create_invalid_links_table)
+				c.execute(create_links_table); 
 				c.execute(create_no_links_table); c.execute(create_self_links_table)
 				c.execute(create_tags_table); c.execute(create_no_bodies_table)
 				c.execute(create_no_titles_table); c.execute(create_taglist_table);
 				#write meta
-				c.execute(insert_meta, (database_name, dt_str, 0, 0, 0, 0, 0, 0, 0,))
+				c.execute(insert_meta, (database_name, dt_str, 0, 0, 0, 0, 0, 0,))
 				conn.commit()
 			except Error as e: print(e)
 			conn.close()
-			print_db_meta(new_db_path)
+			print_db_meta()
+			p()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ FILE & TEST OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def compile_myself():
@@ -912,6 +941,7 @@ def compile_myself():
 		file='zettel-pycli.py', 
 		cfile='zettel-pycli.pyc',
 		optimize=2,)
+	p()
 	
 def make_template():
 	gen_template();
@@ -926,7 +956,6 @@ def gen_template():
 	f.close()
 	
 def make_test_batch():
-	
 	lorem = '''Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
 	Phasellus mollis vulputate lobortis. Etiam auctor, massa in pulvinar 
 	pulvinar, nisi est consectetur arcu, ac rhoncus metus velit quis nisl. 
@@ -937,7 +966,6 @@ def make_test_batch():
 	Quisque vulputate leo vitae erat sodales ultrices. Curabitur id dictum 
 	ligula. Praesent lectus orci, tincidunt convallis turpis sit amet, dapibus 
 	iaculis nisi. Integer quis gravida erat. '''
-
 	print_test_warn()
 	try:
 		inp_num = int(s_prompt('how many zettels to make?'))
@@ -1061,10 +1089,7 @@ def print_invalid_links_warn():
 	print('this error should occur after importing .md zettels')
 	print('which is why you shall fix the links in your .md files')
 	print('and then re-import them to database again')
-	print('optionally, you may discard those links')
-
-def print_invalid_links_not_removed(): divider(); print('invalid links warnings are kept')
-def print_invalid_links_removed(): divider(); print('invalid links warnings are removed')
+	print('optionally, you may ignore this warning')
 
 def print_check_passed(): divider(); print('all good, no corrupt links or unlinked zettels')
 
@@ -1108,6 +1133,12 @@ def print_made_tests():
 	print("don't forget to import them into the database")
 
 #WRITING ZETTEL
+def print_abort_writing():
+	cl_divider()
+	print('no text was written, you can try again or abort')
+	print("() - resume writing")
+	print_qm()
+	
 def print_no_default_editor(option): 
 	cl_divider(); 
 	print('unable to use default editor:', option)
@@ -1172,18 +1203,6 @@ def print_git_ops():
 	print('(u) - launch "gitui" (must be installed)')
 	print_q()
 
-#SELECTING WRITER
-def print_writer_options():
-	cl_divider()
-	print('to use any of provided external editors,')
-	print('make sure they are installed\n')
-	print('() - write with user-defined editor (see script header)')
-	print('(v) - write using vim')
-	print('(e) - write using emacs')
-	print('(n) - write using nano')
-	print('(i) - fallback write with python input')
-	print_qm()
-	
 #SEARCHING
 def print_searching():
 	divider()
@@ -1201,14 +1220,14 @@ def print_how_to_search_zettel():
 	print_q()
 	print_qm()
 
-def print_search_zettel_commands():
+def print_search_zettel_ops():
 	divider()
 	print("'number' - select entry")
 	print("(c) - clear search query and start again")
 	print_qc()
 	print_qm()
 	
-def print_select_zettel_commands():
+def print_select_zettel_ops():
 	divider()
 	print("'number' - inspect entry")
 	print_qc()
@@ -1234,7 +1253,7 @@ def print_zettel_ops_lim():
 	print_qm()
 	
 #SEARCHING TAGS
-def print_search_tag_commands():
+def print_search_tag_ops():
 	divider()
 	print("'number' - select entry")
 	print('(n) - add a new tag not from list')
@@ -1243,28 +1262,21 @@ def print_search_tag_commands():
 	print_qm()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ OTHER PRINTING ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def print_db_meta(db_path=current_db_path):
-	if os.path.isfile(db_path):
-		try:
-			cl_divider()
-			meta = query_db(None, "SELECT * FROM meta", db_path)
-			print('database name:', meta[0][1])
-			print('created:', meta[0][2])
-			print('total number of zettels:', meta[0][3])
-			print('total number of links:', meta[0][4])
-			divider()
-			print('warnings:')
-			print('invalid links:', meta[0][5])
-			print('zettels without links:', meta[0][6])
-			print('zettels that link to themselves:', meta[0][7])
-			print('empty zettels:', meta[0][8])
-			print('zettels without titles:', meta[0][9])
-		except:
-			divider()
-			print("couldn't find metadata table on:", db_path)
-			print('check if database exists')
-	else: print_no_db_warn()
-	
+def print_db_meta(db_name):
+	meta = read_meta_all(db_name)
+	cl_divider()
+	print('database name:', meta[1])
+	print('created:', meta[2])
+	print('total number of zettels:', meta[3])
+	print('total number of links:', meta[4])
+	divider()
+	print('warnings:')
+	print('zettels without links:', meta[5])
+	print('zettels that link to themselves:', meta[6])
+	print('empty zettels:', meta[7])
+	print('zettels without titles:', meta[8])
+	p()
+
 def print_whole_zettel(zettel):
 	cl_divider()
 	print(format_zettel(zettel))
@@ -1358,16 +1370,13 @@ def print_zettels_links_z_id_from(titles, current_title):
 		num += 1
 	print('\nzettels linked by:', current_title, '-', len(titles))
 	
-
-def print_invalid_links():
-	entries = read_invalid_links_all()
-	if entries == []: return False
+def print_invalid_links(entries):
+	if not entries: return False
 	same_zettel = False; id_prev = None; num = 1
 	divider()
 	for entry in entries:
-		zettel = read_main_id(entry[1])
-		z_id = zettel[0]; z_title = zettel[1]; z_path = zettel[2]; 
-		invalid_link_name = entry[2]
+		z_id = entry[0]; z_title = entry[1]; z_path = entry[2]; 
+		invalid_link_name = entry[3]
 		if z_id == id_prev: same_zettel = True
 		if same_zettel:
 			print('   └─', invalid_link_name)
