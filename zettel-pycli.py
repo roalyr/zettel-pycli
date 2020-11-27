@@ -173,6 +173,11 @@ delete_links_z_id_from = "DELETE FROM links WHERE z_id_from = ?"
 delete_links_z_id_to = "DELETE FROM links WHERE z_id_to = ?"
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ WRITING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def write_no_titles(z_id): add_to_db([z_id], insert_no_titles, current_db_path)
+def write_no_bodies(z_id): add_to_db([z_id], insert_no_bodies, current_db_path)
+def write_no_links(z_id): add_to_db([z_id], insert_no_links, current_db_path)
+def write_self_titles(z_id): add_to_db([z_id], insert_self_links, current_db_path)
+	
 def write_zettel(z_title, z_path, z_body):
 	z_id = add_to_db([z_title, z_path, z_body], insert_main, current_db_path)
 	return z_id #regurns only last id
@@ -264,11 +269,20 @@ def rescan_meta(): #after any edit
 	tot_no_links = 0
 	tot_self_links = 0
 	for zettel in zettels:
-		if not zettel[1]: tot_no_titles += 1
-		if not zettel[3]: tot_no_bodies += 1
-		if not read_links_z_id_from(zettel[0]): tot_no_links += 1
+		z_id = zettel[0]
+		if not zettel[1]: 
+			tot_no_titles += 1
+			write_no_titles(z_id)
+		if not zettel[3]: 
+			tot_no_bodies += 1
+			write_no_bodies(z_id)
+		if not read_links_z_id_from(z_id): 
+			tot_no_links += 1
+			write_no_links(z_id)
 	for link in links:
-		if link[1] == link[2]: tot_self_links += 1
+		if link[1] == link[2]: 
+			tot_self_links += 1
+			write_self_titles(link[1])
 	metadata = [
 		database_name, #
 		dt_str, #
@@ -381,7 +395,7 @@ def tag_picker(): #add ops to edit the list properly
 def edit_main_z_title(z_id):
 	print('write new title')
 	z_title = read_main_id(z_id)[1]
-	new_title = write_not_empty(z_title, '')
+	new_title = write_not_empty(z_title, 'prompt')
 	rewrite_main_z_title(z_id, new_title)
 	
 def edit_main_z_body(z_id):
@@ -408,6 +422,7 @@ def edit_tags_z_id(z_id): #zettel ops only
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYZE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def review(): #make an actualcheck
+	rescan_meta()
 	print_start_check(); errors = False
 	if not os.path.isfile(current_db_path): print_no_db_warn(); return
 	if print_zettels_warnings(None, select_no_titles_all): print_no_titles_warn(); errors = True
@@ -443,10 +458,10 @@ def zettel_ops(zettel):
 		if allow_submenu:
 			if inp == 'f': follow_links_z_id_from(z_id)
 			elif inp == 'e': zettel_edit_ops(zettel, z_id)
-			elif inp == 'q': return
+			elif inp == 'q': return zettel
 			elif inp == 'qm': main_menu()
 		else:
-			if inp == 'q': return
+			if inp == 'q': return zettel
 			elif inp == 'qm': main_menu()
 		zettel = read_main_id(z_id) #refresh to reflect changes
 		print_whole_zettel(zettel); 
@@ -547,14 +562,15 @@ def search_zettels():
 		elif inp == 'b': flag = 'body'; break
 		elif inp == 'q': return
 		elif inp == 'qm': main_menu()
-	entries = []
+	entries = [];
 	while True:
 		s = find_zettel(flag)
 		if s['found'] or s['stop']: 
-			if s['found']: entries.append(s['found'])
+			if s['found']: 
+				result = zettel_ops(s['found']) #may be edited
+				entries.append(result)
+				print_zettel_search_confirmation(entries)
 			if s['stop']: break
-			zettel_ops(s['found'])
-			print_zettel_search_confirmation(entries)
 			inp = c_prompt('search for more?')
 			if inp == 'q': break
 			elif inp == 'n': flag = 'name'
@@ -776,6 +792,8 @@ def add_to_db(entry, exec_line, db_path):
 				if len(entry) == 1: c.execute(exec_line, (entry[0],))
 				elif len(entry) == 2: c.execute(exec_line, (entry[0], entry[1],))
 				elif len(entry) == 3: c.execute(exec_line, (entry[0], entry[1], entry[2],))
+				elif len(entry) == 8: c.execute(exec_line, (entry[0], entry[1], entry[2],
+					entry[3], entry[4], entry[5], entry[6], entry[7],))
 				else: 
 					print('Attempted to write', len(entry), 'fields, which is not supported')
 					print('The SQLite command is:', exec_line)
@@ -900,8 +918,8 @@ def import_to_db():
 				conn.commit()
 				time_end = time.time()
 				t = time_end - time_start
+				print_importing_succeeded(database_name, t); p()
 				print_db_meta(db_name_imported)
-				print_importing_succeeded(database_name, t)
 				if invalid_links:
 					print_invalid_links(invalid_links)
 			except Error as e: print(e)
