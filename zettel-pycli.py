@@ -144,7 +144,8 @@ select_taglist_tag_like = "SELECT * FROM taglist WHERE tag LIKE ? "
 select_tags_z_id = "SELECT * FROM tags WHERE z_id = ?"
 select_tags_all = "SELECT * FROM tags"
 select_tags_all_dist = "SELECT DISTINCT * FROM tags"
-select_tags_tag_like = "SELECT * FROM tags WHERE tag LIKE ? "
+
+select_tags_tag = "SELECT * FROM tags WHERE tag = ? "
 
 select_links_all = "SELECT * FROM links"
 select_links_z_id_from = "SELECT * FROM links WHERE z_id_from = ?"
@@ -214,7 +215,8 @@ def read_taglist_tags_like(name): return query_db('%'+name+'%', select_taglist_t
 def read_tags_all(): return query_db(None, select_tags_all, current_db_path)
 def read_tags_all_dist(): return query_db(None, select_tags_all_dist, current_db_path)
 def read_tags_z_id(z_id): return query_db(z_id, select_tags_z_id, current_db_path)
-def read_tags_tag_like(name): return query_db('%'+name+'%', select_tags_tag_like, current_db_path)
+
+def read_tags_tag(tag): return query_tags(tag, current_db_path)
 
 def read_main_id(id): return query_db(id, select_main_id, current_db_path)[0] #only one zettel
 def read_main_z_path(name): return query_db(name, select_main_z_path, current_db_path)
@@ -524,8 +526,9 @@ def zettel_search_ops(s):
 		s['found'] = s['entries'][int(inp)-1]
 	except (ValueError, IndexError): pass
 	finally:
-		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_main_all() #reset
+		if inp == "c": s['name'] = ''; s['inp'] = ''; s['tags'] = []; s['entries'] = read_main_all() #reset
 		elif inp == "q": s['stop'] = True
+		elif inp == "t": s['tags'] = search_tags()
 		elif inp == 'qm': main_menu()
 	return s
 	
@@ -573,18 +576,9 @@ def follow_links_z_id_from(z_id):
 		if zettel_select_ops(zettels): return
 	
 def search_zettels():
-	flag = ''
+	entries = []
 	while True:
-		print_how_to_search_zettel()
-		inp = c_prompt('')
-		if inp == 'n': flag = 'name'; break
-		elif inp == 't': flag = 'tag'; break
-		elif inp == 'b': flag = 'body'; break
-		elif inp == 'q': return
-		elif inp == 'qm': main_menu()
-	entries = [];
-	while True:
-		s = find_zettel(flag)
+		s = find_zettel()
 		if s['found'] or s['stop']: 
 			if s['found']: 
 				result = zettel_ops(s['found']) #may be edited
@@ -593,9 +587,6 @@ def search_zettels():
 			if s['stop']: break
 			inp = c_prompt('search for more?')
 			if inp == 'q': break
-			elif inp == 'n': flag = 'name'
-			elif inp == 't': flag = 'tag'
-			elif inp == 'b': flag = 'body'
 			elif inp == 'c': entries = []
 			elif inp == 'qm': main_menu()
 	entries = list(dict.fromkeys(entries)) #dedup
@@ -619,32 +610,71 @@ def search_tags():
 	return entries
 
 
-def find_zettel(flag):
-	s = {'found': None, 'name': '', 'inp': '', 'entries': [], 'stop': False}
-	s['entries'] = read_main_all()
+def find_zettel():
+	s = {'found': None, 'name': '', 'inp': '', 'entries_tag': [], 
+		'entries': [], 'entries_title': [], 'entries_body': [], 'tags': [], 'stop': False}
+	#s['entries_all'] = read_main_all()
+	
 	while True:
+		s['entries'] = []; tags = []
 		if s['inp'] != ':': s['name'] += s['inp']
-		if flag == 'name': s['entries'] = read_main_z_title_like(s['name'])
-		elif flag == 'body': s['entries'] = read_main_z_body_like(s['name'])
-		elif flag == 'tag':
-			s['entries'].clear() #reset
-			if s['name'] != '': #if entereg something - fing by tag
-				tagged = read_tags_tag_like(s['name'])
-				for tagged_entry in tagged:
-					found_id = tagged_entry[1]
-					entry = read_main_id(found_id)
-					s['entries'].append(entry)
-				s['entries'] = list(dict.fromkeys(s['entries'])) #dedup
-			else: s['entries'] = read_main_all() #or show all
-		s['found'] = print_many_zettels_or_return(s['entries'])
+		
+		s['entries_title'] = read_main_z_title_like(s['name'])
+		s['entries_body'] = read_main_z_body_like(s['name'])
+		s['entries'] = s['entries_title'] + s['entries_body']
+		s['entries'] = list(dict.fromkeys(s['entries'])) #dedup
+		
+		#s = zettel_filter_lists(s)
+		
 		if s['inp'] == ':': 
 			s = zettel_search_ops(s); 
-			if not s['stop']:
-				print_many_zettels_or_return(s['entries']); 
+			if s['found'] or s['stop']: return s
+				
+		result = zettel_filter_lists(s, tags)
+		s = result[0]; tags = result[1]
+				
 		if s['found'] or s['stop']: return s
-		if flag == 'tag': print_all_tags()
-		s['inp'] = s_prompt('searching zettel by ' + flag +': '+ s['name'])
 		
+		print('filter by tag:', str_from_list(False, True, False, tags, None));
+		print('keywords find:', s['name'])
+		
+		s['inp'] = s_prompt("(':' for commands)")
+
+def zettel_filter_lists(s, tags):
+	if s['tags']:
+		for tag in s['tags']:
+			tags.append(tag[1])
+	
+	if len(tags) > 1: #if many tags
+		zettels_groups = []; intersected = []
+		for tag in tags: #find zettel groups for each tag
+			group = []
+			tagged = read_tags_tag(tag)
+			for tagged_entry in tagged:
+				found_id = tagged_entry[1]
+				zettel = read_main_id(found_id)
+				group.append(zettel)
+			zettels_groups.append(group) #a list of lists
+		
+		for group in zettels_groups: #incrementally intersect
+			s['entries'] = list(set(s['entries']) & set(group))
+		
+		
+	elif len(tags) == 1: #if only one tag
+		tag = tags[0];
+		tagged = read_tags_tag(tag)
+		for tagged_entry in tagged:
+			found_id = tagged_entry[1]
+			zettel = read_main_id(found_id)
+			s['entries_tag'].append(zettel)
+		s['entries'] = list(set(s['entries']).intersection(s['entries_tag'] ))
+				
+	else: print('not searching for tags');
+	
+	
+	s['found'] = print_many_zettels_or_return(s['entries'])
+	return (s, tags,)
+
 def find_tags():
 	s = {'found': None, 'name': '', 'inp': '', 'entries': [], 'stop': False}
 	s['entries'] = read_taglist_all()
@@ -793,22 +823,12 @@ def print_git_ops():
 def print_searching():
 	divider()
 	print('keep narrowing your search by entering more characters')
-	print("or enter ':' for search tools or to return")
 	
 #SEARCHING ZETTEL
-def print_how_to_search_zettel():
-	cl_divider()
-	print('how do you want to find a zettel?')
-	divider()
-	print('(n) - by zettel name (title)')
-	print('(t) - by tag')
-	print('(b) - by text body')
-	print_q()
-	print_qm()
-
 def print_search_zettel_ops():
 	divider()
 	print("'number' - select entry")
+	print("(t) - select tags for filter")
 	print("(c) - clear search query and start again")
 	print_qc()
 	print_qm()
@@ -899,14 +919,12 @@ def print_all_tags():
 	print('available tags:'); print(strn);
 
 def print_selected_zettels(entries):
-	enumerate = True
 	strn = str_from_list(search_sort_titles, search_draw_titles_in_line,
 		search_numerate_titles, entries, 1)
 	cl_divider()
 	print('viewed | selected zettels:'); print(strn)
 	
 def print_selected_tags(entries):
-	enumerate = True
 	strn = str_from_list(search_sort_tags, search_draw_tags_in_line,
 		search_numerate_tags, entries, 1)
 	cl_divider()
@@ -916,9 +934,6 @@ def print_zettel_search_confirmation(entries):
 	print_selected_zettels(entries)
 	divider()
 	print('() - resume search')
-	print('(n) - switch to search by title (name)')
-	print('(t) - switch to search by tag')
-	print('(b) - switch to search by text body')
 	print('(c) - clear search queue and restart search')
 	print_qc()
 	print_qm()
@@ -941,7 +956,8 @@ def print_many_zettels_or_return(zettels):
 		for zettel in zettels:
 			print(str(num)+'.', zettel[1])
 			num += 1
-		print('\ntotal search hits:', len(zettels)); print_searching()
+		print_searching()
+		print('zettels found:', len(zettels));
 	elif len(zettels) == 0: 
 		cl_divider()
 		print("no zettel found, ':' for options");
@@ -1038,7 +1054,7 @@ def format_zettel(zettel):
 def list_by_tag(tag_id):
 	titles = []; tagged_zettels = []
 	listed_tag = read_taglist_id(tag_id)[1]
-	tags = read_tags_tag_like(listed_tag)
+	tags = read_tags_tag(listed_tag)
 	for tag in tags:
 		z_id = tag[1]
 		zettel = read_main_id(z_id)
@@ -1060,19 +1076,22 @@ def list_by_links_z_id_from(z_id):
 
 def str_from_list(sort_flag, draw_flag, numerate, init, i):
 	def process(fin, numerate, le):
-		strn = ''; num = 1; dot = '. '; i = 0
+		strn = ''; num = 1; dot = '. '; pos = 0
 		for entry in fin: 
 			if numerate:
-				if not i == len(fin)-1: strn += str(num)+dot+str(entry)+le; num += 1
+				if not pos == len(fin)-1: strn += str(num)+dot+str(entry)+le; num += 1
 				else: strn += str(num)+dot+str(entry)+'.' #final symbol control
 			else:
-				if not i == len(fin)-1: strn += str(entry)+le; num += 1
+				if not pos == len(fin)-1: strn += str(entry)+le; num += 1
 				else: strn += str(entry)+'.' #final symbol control
-			i += 1
+			pos += 1
 		return strn
 	
 	fin = []; 
-	for entry in init: fin.append(entry[i])
+	if i:
+		for entry in init: fin.append(entry[i])
+	else: 
+		for entry in init: fin.append(entry)
 	if sort_flag: fin.sort()
 	if draw_flag:
 		strn = process(fin, numerate, ', ')
@@ -1156,6 +1175,22 @@ def query_db(query, exec_line, db_path):
 					c.execute(exec_line, (query,))
 				else: 
 					c.execute(exec_line)
+				found = c.fetchall()
+			except Error as e: print(e)
+			conn.close(); return found
+			
+def query_tags(tag, db_path): #for AND condition filtering
+	found = []; conn = None
+	try: conn = sqlite3.connect(db_path)
+	except Error as e: print(e)
+	finally:
+		if conn:
+			try:
+				c = conn.cursor()
+				if tag: 
+					c.execute(select_tags_tag, (tag,))
+				else: 
+					return found
 				found = c.fetchall()
 			except Error as e: print(e)
 			conn.close(); return found
