@@ -500,11 +500,11 @@ def tag_ops(tag):
 	print_tag_info(titles, listed_tag); print_tag_ops()
 	while True:
 		inp = c_prompt('')
-		if inp =='': print_zettels_under_tag(titles, tag); zettel_select_ops(zettels); #return tag
+		if inp =='i': print_zettels_under_tag(titles, tag); zettel_select_ops(zettels); #return tag
 		elif inp == "n": tag = make_new_tag(); return tag
-		elif inp == "q": return tag
 		elif inp == 'qm': main_menu()
 		print_tag_info(titles, listed_tag); print_tag_ops()
+		return tag
 		
 def zettel_select_ops(zettels): #when zettel list provided
 	print_select_zettel_ops()
@@ -578,39 +578,39 @@ def follow_links_z_id_from(z_id):
 def search_zettels():
 	entries = []
 	while True:
-		s = find_zettel()
+		s = find_zettel(entries)
 		if s['found'] or s['stop']: 
 			if s['found']: 
 				result = zettel_ops(s['found']) #may be edited
 				entries.append(result)
+				entries = list(dict.fromkeys(entries)) #dedup
+			if s['stop']:
 				print_zettel_search_confirmation(entries)
-			if s['stop']: break
-			inp = c_prompt('search for more?')
-			if inp == 'q': break
-			elif inp == 'c': entries = []
-			elif inp == 'qm': main_menu()
-	entries = list(dict.fromkeys(entries)) #dedup
+				inp = c_prompt('search for more?')
+				if inp == 'q': break
+				elif inp == 'c': entries = []
+				elif inp == 'qm': main_menu()
 	return entries
 	
 def search_tags():
 	entries = []
 	while True:
-		s = find_tags()
+		s = find_tags(entries)
 		if s['found'] or s['stop']: 
 			if s['found']: 
 				result = tag_ops(s['found'])
 				entries.append(result)
+				entries = list(dict.fromkeys(entries)) #dedup
+			if s['stop']:
 				print_tag_search_confirmation(entries)
-			if s['stop']: break
-			inp = c_prompt('search for more?')
-			if inp == 'q': break
-			elif inp == 'qm': main_menu()
-			elif inp == 'c': entries = []
-	entries = list(dict.fromkeys(entries)) #dedup
+				inp = c_prompt('search for more?')
+				if inp == 'q': break
+				elif inp == 'qm': main_menu()
+				elif inp == 'c': entries = []
 	return entries
 
 
-def find_zettel():
+def find_zettel(prev_found):
 	s = {'found': None, 'name': '', 'inp': '', 'entries_tag': [], 
 		'entries': [], 'entries_title': [], 'entries_body': [], 'tags': [], 'stop': False}
 	#s['entries_all'] = read_main_all()
@@ -635,6 +635,7 @@ def find_zettel():
 				
 		if s['found'] or s['stop']: return s
 		
+		print_selected(prev_found, 1)
 		print('filter by tag:', str_from_list(False, True, False, tags, None));
 		print('keywords find:', s['name'])
 		
@@ -661,7 +662,7 @@ def zettel_filter_lists(s, tags):
 		
 		
 	elif len(tags) == 1: #if only one tag
-		tag = tags[0];
+		tag = tags[0]; s['entries_tag'] = []
 		tagged = read_tags_tag(tag)
 		for tagged_entry in tagged:
 			found_id = tagged_entry[1]
@@ -675,7 +676,7 @@ def zettel_filter_lists(s, tags):
 	s['found'] = print_many_zettels_or_return(s['entries'])
 	return (s, tags,)
 
-def find_tags():
+def find_tags(prev_found):
 	s = {'found': None, 'name': '', 'inp': '', 'entries': [], 'stop': False}
 	s['entries'] = read_taglist_all()
 	while True:
@@ -687,6 +688,8 @@ def find_tags():
 			if not s['stop']:
 				print_many_tags_or_return(s['entries']); 
 		if s['found'] or s['stop']: return s
+		
+		print_selected(prev_found, 1)
 		s['inp'] = s_prompt('searching existing tag: '+ s['name'])
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ PRINT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -887,9 +890,9 @@ def print_make_new_tag():
 	
 def print_tag_ops():
 	divider()
-	print('() - inspect zettels under tag')
+	print('() - return')
+	print('(i) - inspect zettels under tag')
 	print('(n) - make a new tag')
-	print_qc()
 	print_qm()
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ OTHER PRINTING ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -917,6 +920,10 @@ def print_all_tags():
 		search_numerate_tags, read_taglist_all(), 1)
 	divider()
 	print('available tags:'); print(strn);
+	
+def print_selected(entries, i):
+	strn = str_from_list(False, True, False, entries, i)
+	print('viewed | selected:', strn)
 
 def print_selected_zettels(entries):
 	strn = str_from_list(search_sort_titles, search_draw_titles_in_line,
@@ -945,7 +952,7 @@ def print_tag_search_confirmation(entries):
 	print('(c) - clear search queue and restart search')
 	print_qc()
 	print_qm()
-	
+
 def print_found_zettels(zettel, val): print('selected:', str(val)+'.', zettel[1])
 def print_found_tags(tag, val): print('selected:', str(val)+'.', tag[1])
 
@@ -1388,16 +1395,7 @@ def gen_template():
 	f.close()
 	
 def make_test_batch():
-	lorem = '''Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
-	Phasellus mollis vulputate lobortis. Etiam auctor, massa in pulvinar 
-	pulvinar, nisi est consectetur arcu, ac rhoncus metus velit quis nisl. 
-	In nec eros in tortor faucibus egestas a vitae erat. Sed tincidunt nunc 
-	urna. Donec sit amet justo interdum, ullamcorper orci a, cursus dui. 
-	Sed et sem eget nunc tristique scelerisque ut a augue. 
-	Etiam leo enim, lacinia eget luctus at, aliquet vel ipsum. 
-	Quisque vulputate leo vitae erat sodales ultrices. Curabitur id dictum 
-	ligula. Praesent lectus orci, tincidunt convallis turpis sit amet, dapibus 
-	iaculis nisi. Integer quis gravida erat. '''
+	lorem = '''Lorem ipsum dolor sit amet, consectetur adipiscing elit. '''
 	print_test_warn()
 	try:
 		inp_num = int(s_prompt('how many zettels to make?'))
@@ -1407,6 +1405,17 @@ def make_test_batch():
 	#perfect zettels
 	for i in range(inp_num):
 		frnd = random.random(); frnd2 = random.random(); frnd3 = random.random() 
+		if frnd < 0.1: tags = 'performance, zettel, test, tags, python'
+		elif frnd < 0.2 and frnd >= 0.11: tags = 'test, zettel'
+		elif frnd < 0.3 and frnd >= 0.21: tags = 'tags, test'
+		elif frnd < 0.4 and frnd >= 0.31: tags = 'test, tags'
+		elif frnd < 0.5 and frnd >= 0.41: tags = 'performance, zettel'
+		elif frnd < 0.6 and frnd >= 0.51: tags = 'test, python'
+		elif frnd < 0.7 and frnd >= 0.61: tags = 'performance, test'
+		elif frnd < 0.8 and frnd >= 0.71: tags = 'performance, python'
+		elif frnd < 0.9 and frnd >= 0.81: tags = 'performance, tags'
+		elif frnd < 1.0 and frnd >= 0.91: tags = 'performance, test'
+		
 		if frnd <= inp_corr:
 			links = ''
 			try: #generate links, avoiding self-linking
@@ -1416,9 +1425,9 @@ def make_test_batch():
 					if rnd == inp_num: rnd -= 2
 					links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
 			except ValueError: pass
-			zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i) \
+			zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i+1) \
 			+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
-			+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
+			+ tags + '\n\n' + marker_links + '\n' + links
 		else: #bad zettels
 			links = ''
 			try: #make some wrong links
@@ -1427,22 +1436,22 @@ def make_test_batch():
 						rnd = random.randrange(inp_num)
 						links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
 				elif frnd2 < 0.5 and frnd >= 0.25: links += '[some](bronek links)'
-				elif frnd < 0.75 and frnd >= 0.5: links += '[Self link '+str(j)+']('+str(i)+'.md)\n'
+				elif frnd < 0.75 and frnd >= 0.5: links += '[Self link '+str(j)+']('+str(i+1)+'.md)\n'
 				else: pass
 			except ValueError: pass
 			
 			if frnd < 0.33: #make some wrong zettels
 				zettel_template_test = marker_title + '\n'\
 				+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
-				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
+				+ tags + '\n\n' + marker_links + '\n' + links
 			elif frnd3 < 0.66 and frnd >= 0.33:
-				zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i) \
+				zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i+1) \
 				+ '\n\n' + marker_body + '\n\n' + marker_tags + '\n' \
-				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
+				+ tags + '\n\n' + marker_links + '\n' + links
 			elif frnd2 <= 1.0 and frnd >= 0.66:
 				zettel_template_test = marker_title + '\n'\
 				+ '\n\n' + marker_body + '\n' + marker_tags + '\n' \
-				+ "test, zettel batch, performance" + '\n\n' + marker_links + '\n' + links
+				+ tags + '\n\n' + marker_links + '\n' + links
 		if not os.path.exists(path): os.mkdir(path)
 		f = open(path + "/" + str(i) + '.md', "w")
 		f.write(zettel_template_test); f.close()
