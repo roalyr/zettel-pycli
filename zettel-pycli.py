@@ -501,18 +501,21 @@ def zettel_edit_ops(zettel, z_id):
 	elif inp == 't': edit_tags_z_id(z_id)
 	elif inp == 'd': delete_zettel(z_id); main_menu()
 		
-def tag_ops(tag):
-	tag_id = tag[0];
-	result = list_by_tag(tag_id) #if it returns - tag is good
-	zettels = result[0]; titles = result[1]; listed_tag = result[2]
-	print_tag_info(titles, listed_tag); print_tag_ops()
-	while True:
+def tag_ops(tag, editor_select_mode):
+	if not editor_select_mode:
+		tag_id = tag[0];
+		result = list_by_tag(tag_id) #if it returns - tag is good
+		zettels = result[0]; titles = result[1]; listed_tag = result[2]
+		print_tag_info(titles, listed_tag); print_tag_ops()
+	else: return tag
+	while not editor_select_mode:
 		inp = c_prompt('')
 		if inp == '': return tag
 		elif inp =='i': print_zettels_under_tag(titles, tag); zettel_select_ops(zettels); #return tag
 		elif inp == "n": tag = make_new_tag(); return tag
 		elif inp == 'qm': main_menu()
 		print_tag_info(titles, listed_tag); print_tag_ops()
+	
 		
 def zettel_select_ops(zettels): #when zettel list provided
 	print_select_zettel_ops()
@@ -611,13 +614,13 @@ def search_tags(editor_select_mode): #must be passed in
 		s = find_tags(s, entries, editor_select_mode)
 		if s['stop']: break
 		if s['found'] and not s['exact']: 
-			result = tag_ops(s['found'])
+			result = tag_ops(s['found'], editor_select_mode)
 			if editor_select_mode: 
 				entries.append(result)
 				entries = list(dict.fromkeys(entries)) #dedup
 			s['found'] = None; s['inp'] = '' #keep searching if not exact found
 		if s['exact']:
-			result = tag_ops(s['found'])
+			result = tag_ops(s['found'], editor_select_mode)
 			if editor_select_mode: 
 				entries.append(result)
 				entries = list(dict.fromkeys(entries)) #dedup
