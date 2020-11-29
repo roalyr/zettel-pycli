@@ -318,14 +318,21 @@ def rescan_meta(): #only when checking
 	add_to_db(metadata, insert_meta, current_db_path)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ZETTEL / TAG WRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def write_not_empty(inject_text, flag):
+def write_not_empty(inject_text, flag, allow_exit):
 	name = '';
 	while not name: 
 		if not flag == 'prompt': name = write_with_editor(inject_text)
 		else: name = write_fallback(inject_text)
 		if name =='': 
-			print_abort_writing()
-			if c_prompt('') == 'qm': main_menu()
+			if not allow_exit:
+				print_abort_writing()
+				inp = c_prompt('')
+				if inp == 'qm': main_menu()
+			else: 
+				print_abort_writing_quit_allowed()
+				inp = c_prompt('')
+				if inp == 'qm': main_menu()
+				elif inp == 'q': return name
 	return name
 
 def write_with_editor(inject_text):
@@ -355,9 +362,9 @@ def make_new_zettel():
 	global editor_select_mode
 	editor_select_mode = True
 	print_title_select(); p()
-	z_title = write_not_empty(None, 'prompt')
+	z_title = write_not_empty(None, '', allow_exit=False)
 	print_body_select(); p()
-	z_body = write_not_empty(None, '')
+	z_body = write_not_empty(None, '', allow_exit=False)
 	print_zettels_select(); p()
 	zettels_linked = zettel_picker()
 	print_tags_select(); p()
@@ -381,7 +388,7 @@ def make_new_zettel():
 
 def make_new_tag():
 	print_make_new_tag()
-	tag = write_not_empty(None, 'prompt')
+	tag = write_not_empty(None, 'prompt', allow_exit=False)
 	t_id = write_taglist_tag([(tag,)])
 	return (t_id, tag)
 
@@ -392,22 +399,22 @@ def zettel_picker(): #add ops to edit the list properly
 	except TypeError: pass
 	return zettels
 	
-def tag_picker(): #add ops to edit the list properly
+def tag_picker(editor_select_mode): #add ops to edit the list properly
 	tags = [] 
-	try: tags += search_tags()
+	try: tags += search_tags(editor_select_mode)
 	except TypeError: pass
 	return tags
 	
 def edit_main_z_title(z_id):
 	print('write new title')
 	z_title = read_main_id(z_id)[1]
-	new_title = write_not_empty(z_title, 'prompt')
+	new_title = write_not_empty(z_title, '', allow_exit=False)
 	rewrite_main_z_title(z_id, new_title)
 	
 def edit_main_z_body(z_id):
 	print('write new body')
 	z_body = read_main_id(z_id)[3]
-	new_body = write_not_empty(z_body, '')
+	new_body = write_not_empty(z_body, '', allow_exit=False)
 	rewrite_main_z_body(z_id, new_body)
 	
 def edit_links_z_id_from(z_id):
@@ -422,7 +429,7 @@ def edit_tags_z_id(z_id): #zettel ops only
 	print('editing tags')
 	global editor_select_mode
 	editor_select_mode = True
-	tags = tag_picker()
+	tags = tag_picker(editor_select_mode)
 	editor_select_mode = False
 	rewrite_tags(z_id, tags)
 
@@ -466,6 +473,7 @@ def git_menu():
 		elif inp == "q": break
 		
 def zettel_ops(zettel):
+	global editor_select_mode
 	z_id = zettel[0]; z_title = zettel[1]; z_body = zettel[3]
 	if not editor_select_mode: print_whole_zettel(zettel); print_zettel_ops() #init
 	else: print_whole_zettel(zettel); print_zettel_ops_lim() #init
@@ -518,25 +526,17 @@ def zettel_select_ops(zettels): #when zettel list provided
 	elif inp == 'qm': main_menu()
 
 def zettel_search_ops(s):
-	global editor_select_mode
 	print_search_zettel_ops()
 	inp = c_prompt('')
 	try: 
-		s['found'] = s['entries'][int(inp)-1]
+		s['found'] = s['entries'][int(inp)-1]; return s
 	except (ValueError, IndexError): pass
 	finally:
-		if inp == 'ew': s['inp'] = ''; s['name'] = write_not_empty(s['name'], '')
-		elif inp == 'cw':  
-			s['inp'] = ''; s['name'] = ''; 
-			s['tags_prev'] = [(0,''),]; #must not equal to tags to force refresh
-		elif inp == 'ct':  
-			s['inp'] = ''; s['tags_prev'] = [(0,''),]; #must not equal to tags
-			s['tags_names'] = []; s['tags'] = []; 
+		if inp == 'ew': s['inp'] = ''; s['name'] = write_not_empty(s['name'], '', allow_exit=True)
+		elif inp == 'cw':  s['inp'] = ''; s['name'] = ''; 
+		elif inp == 'ct': s['inp'] = ''; s['tags_names'] = []; s['tags'] = []; 
+		elif inp == 't': s['inp'] = ''; s['tags'] = search_tags(editor_select_mode=True)
 		elif inp == 'q': s['stop'] = True
-		elif inp == 't': 
-			editor_select_mode = True
-			s['tags'] = search_tags()
-			editor_select_mode = False
 		elif inp == 'qm': main_menu()
 	return s
 	
@@ -544,10 +544,10 @@ def tag_search_ops(s):
 	print_search_tag_ops()
 	inp = c_prompt('')
 	try: 
-		s['found'] = s['entries'][int(inp)-1]
+		s['found'] = s['entries'][int(inp)-1]; return s
 	except (ValueError, IndexError): pass
 	finally:
-		if inp == "c": s['name'] = ''; s['inp'] = ''; s['entries'] = read_taglist_all() #reset
+		if inp == "cw": s['name'] = ''; s['inp'] = ''; s['entries'] = read_taglist_all() #reset
 		elif inp == "n": s['found'] = make_new_tag()
 		elif inp == "q": s['stop'] = True
 		elif inp == 'qm': main_menu()
@@ -562,7 +562,7 @@ def main_menu():
 		if inp == "i": print_db_meta(current_db_path); p()
 		elif inp == "n": make_new_zettel();
 		elif inp == "z": search_zettels(); 
-		elif inp == "t": search_tags(); 
+		elif inp == "t": search_tags(editor_select_mode); 
 		elif inp == "r": review();
 		elif inp == "init": init_new_db();
 		elif inp == "temp": make_template();
@@ -585,7 +585,7 @@ def follow_links_z_id_from(z_id):
 def search_zettels():
 	global editor_select_mode
 	entries = []
-	s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'entries_tag': [], 'tags_prev': [], 
+	s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'entries_tag': [], 'name_prev': '',
 		'tags_names': [], 'entries': [], 'entries_title': [], 'entries_body': [], 'tags': [], 'stop': False}
 	while True:
 		s = find_zettel(s, entries)
@@ -601,16 +601,14 @@ def search_zettels():
 			if editor_select_mode: 
 				entries.append(result)
 				entries = list(dict.fromkeys(entries)) #dedup
-			s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'entries_tag': [], 'tags_prev': [], 
-				'tags_names': [], 'entries': [], 'entries_title': [], 'entries_body': [], 'tags': [], 'stop': False}
+			s['found'] = None; s['inp'] = ''; s['name'] = s['name_prev'] #roll back to resume narrowed search
 	return entries
 	
-def search_tags():
-	global editor_select_mode
+def search_tags(editor_select_mode): #must be passed in
 	entries = []
 	s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'entries': [], 'stop': False}
 	while True:
-		s = find_tags(s, entries)
+		s = find_tags(s, entries, editor_select_mode)
 		if s['stop']: break
 		if s['found'] and not s['exact']: 
 			result = tag_ops(s['found'])
@@ -631,6 +629,7 @@ def find_zettel(s, prev_found):
 	s = zettel_filter_lists(s) #init
 	while True:
 		if s['inp'] and s['inp'] != ':': 
+			s['name_prev'] = s['name'] #store prev. step
 			s['name'] += s['inp']
 			s = zettel_filter_lists(s) #filter entries
 			s['found'] = print_list_or_return(s['entries'])
@@ -649,9 +648,9 @@ def find_zettel(s, prev_found):
 		print_list_or_return(s['entries']) #print
 		print_zettel_search_stats(s['tags_names'], s['name'])
 		if editor_select_mode: print_selected(prev_found, 1) #if in select mode
-		s['inp'] = s_prompt("(':' - options)")
+		s['inp'] = s_prompt("enter text (':' - options)")
 
-def find_tags(s, prev_found):
+def find_tags(s, prev_found, editor_select_mode): #must be passed in
 	while True:
 		if s['inp'] != ':': 
 			s['name'] += s['inp']
@@ -667,7 +666,7 @@ def find_tags(s, prev_found):
 			if s['stop']: return s
 		print_list_or_return(s['entries']) #print
 		if editor_select_mode: print_selected(prev_found, 1)
-		s['inp'] = s_prompt("(':' for commands)")
+		s['inp'] = s_prompt("enter text (':' - options)")
 
 def zettel_filter_lists(s):
 	s['entries'] = []; #keyword search
@@ -675,31 +674,29 @@ def zettel_filter_lists(s):
 	s['entries_body'] = read_main_z_body_like(s['name'])
 	s['entries'] = s['entries_title'] + s['entries_body']
 	s['entries'] = list(dict.fromkeys(s['entries'])) #dedup
-	if s['tags'] and s['tags_prev'] != s['tags']: #tag update initiated
-		for tag in s['tags']:
-			s['tags_names'].append(tag[1])
-		s['tags_prev'] = s['tags'] #store current tags
-		s['tags_names'] = list(dict.fromkeys(s['tags_names'])) #dedup
-		if len(s['tags_names']) > 1: #if many tags
-			zettels_groups = []; intersected = []
-			for tag in s['tags_names']: #find zettel groups for each tag
-				group = []
-				tagged = read_tags_tag(tag)
-				for tagged_entry in tagged:
-					found_id = tagged_entry[1]
-					zettel = read_main_id(found_id)
-					group.append(zettel)
-				zettels_groups.append(group) #a list of lists
-			for group in zettels_groups: #incrementally intersect
-				s['entries'] = list(set(s['entries']) & set(group))
-		elif len(s['tags_names']) == 1: #if only one tag
-			tag = s['tags_names'][0]; s['entries_tag'] = []
+	for tag in s['tags']:
+		s['tags_names'].append(tag[1])
+	s['tags_names'] = list(dict.fromkeys(s['tags_names'])) #dedup
+	if len(s['tags_names']) > 1: #if many tags
+		zettels_groups = []; intersected = []
+		for tag in s['tags_names']: #find zettel groups for each tag
+			group = []
 			tagged = read_tags_tag(tag)
 			for tagged_entry in tagged:
 				found_id = tagged_entry[1]
 				zettel = read_main_id(found_id)
-				s['entries_tag'].append(zettel)
-			s['entries'] = list(set(s['entries']).intersection(s['entries_tag'] ))
+				group.append(zettel)
+			zettels_groups.append(group) #a list of lists
+		for group in zettels_groups: #incrementally intersect
+			s['entries'] = list(set(s['entries']) & set(group))
+	elif len(s['tags_names']) == 1: #if only one tag
+		tag = s['tags_names'][0]; s['entries_tag'] = []
+		tagged = read_tags_tag(tag)
+		for tagged_entry in tagged:
+			found_id = tagged_entry[1]
+			zettel = read_main_id(found_id)
+			s['entries_tag'].append(zettel)
+		s['entries'] = list(set(s['entries']).intersection(s['entries_tag'] ))
 	return s
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ PRINT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -768,6 +765,13 @@ def print_abort_writing():
 	cl_divider()
 	print('no text was written, you can try again or abort')
 	print("() - resume writing")
+	print_qm()
+	
+def print_abort_writing_quit_allowed():
+	cl_divider()
+	print('no text was written, you can try again or abort')
+	print("() - resume writing")
+	print_q()
 	print_qm()
 	
 def print_no_default_editor(option): 
@@ -890,7 +894,7 @@ def print_zettels_under_tag(titles, tag):
 def print_search_tag_ops():
 	divider()
 	print("'number' - select entry")
-	print("(c) - clear search query and start again")
+	print("(cw) - clear search phrase")
 	print('(n) - make a new tag')
 	print_q()
 	print_qm()
@@ -1223,7 +1227,7 @@ def incr_add_to_db(entry_list, exec_line, db_path):
 
 def import_to_db():
 	print_importing_warn(); p()
-	inp = write_not_empty(None, 'prompt')
+	inp = write_not_empty(None, 'prompt', allow_exit=False)
 	if not os.path.isdir(inp):
 		print_importing_failed(); return #failed
 	dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
@@ -1323,7 +1327,7 @@ def import_to_db():
 			
 def init_new_db():
 	print_init_new_db(); p()
-	database_name = write_not_empty(None, 'prompt')
+	database_name = write_not_empty(None, 'prompt', allow_exit=False)
 	new_db_path = os.path.join(os.getcwd(), database_name + '.db')
 	if os.path.isfile(new_db_path): print_db_exists(); return
 	dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
