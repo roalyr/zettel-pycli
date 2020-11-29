@@ -518,15 +518,24 @@ def zettel_select_ops(zettels): #when zettel list provided
 	elif inp == 'qm': main_menu()
 
 def zettel_search_ops(s):
+	global editor_select_mode
 	print_search_zettel_ops()
 	inp = c_prompt('')
 	try: 
 		s['found'] = s['entries'][int(inp)-1]
 	except (ValueError, IndexError): pass
 	finally:
-		if inp == "c": s['name'] = ''; s['inp'] = ''; s['tags'] = []; s['entries'] = read_main_all() #reset
+		if inp == "cw":  
+			s['inp'] = ''; s['name'] = ''; 
+			s['tags_prev'] = [(0,''),]; #must not equal to tags to force refresh
+		elif inp == "ct":  
+			s['inp'] = ''; s['tags_prev'] = [(0,''),]; #must not equal to tags
+			s['tags_names'] = []; s['tags'] = []; 
 		elif inp == "q": s['stop'] = True
-		elif inp == "t": s['tags'] = search_tags()
+		elif inp == "t": 
+			editor_select_mode = True
+			s['tags'] = search_tags()
+			editor_select_mode = False
 		elif inp == 'qm': main_menu()
 	return s
 	
@@ -575,8 +584,8 @@ def follow_links_z_id_from(z_id):
 def search_zettels():
 	global editor_select_mode
 	entries = []
-	s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'entries_tag': [], 
-		'entries': [], 'entries_title': [], 'entries_body': [], 'tags': [], 'stop': False}
+	s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'entries_tag': [], 'tags_prev': [], 
+		'tags_names': [], 'entries': [], 'entries_title': [], 'entries_body': [], 'tags': [], 'stop': False}
 	while True:
 		s = find_zettel(s, entries)
 		if s['stop']: break #must be first
@@ -591,8 +600,8 @@ def search_zettels():
 			if editor_select_mode: 
 				entries.append(result)
 				entries = list(dict.fromkeys(entries)) #dedup
-			s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'entries_tag': [], 
-				'entries': [], 'entries_title': [], 'entries_body': [], 'tags': [], 'stop': False}
+			s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'entries_tag': [], 'tags_prev': [], 
+				'tags_names': [], 'entries': [], 'entries_title': [], 'entries_body': [], 'tags': [], 'stop': False}
 	return entries
 	
 def search_tags():
@@ -618,25 +627,26 @@ def search_tags():
 
 def find_zettel(s, prev_found):
 	global editor_select_mode
+	s = zettel_filter_lists(s) #init
 	while True:
-		s['entries'] = []; tags = []
-		if s['inp'] != ':': s['name'] += s['inp']
-		s['entries_title'] = read_main_z_title_like(s['name'])
-		s['entries_body'] = read_main_z_body_like(s['name'])
-		s['entries'] = s['entries_title'] + s['entries_body']
-		s['entries'] = list(dict.fromkeys(s['entries'])) #dedup
+		if s['inp'] and s['inp'] != ':': 
+			s['name'] += s['inp']
+			s = zettel_filter_lists(s) #filter entries
+			s['found'] = print_list_or_return(s['entries'])
+			if s['found']: s['exact'] = True; return s
+			if s['stop']: return s
+			s['inp'] =''; continue #refresh keywords
 		if s['inp'] == ':': 
 			print_list_or_return(s['entries']) #print over prompt
-			print_zettel_search_stats(tags, s['name'])
+			print_zettel_search_stats(s['tags_names'], s['name'])
 			if editor_select_mode: print_selected(prev_found, 1) #if in select mode
 			s = zettel_search_ops(s); 
+			s = zettel_filter_lists(s) #filter entries
 			if s['found']: s['exact'] = False; return s
 			if s['stop']: return s
-		result = zettel_filter_lists(s, tags) #print is there
-		s = result[0]; tags = result[1]
-		if s['found']: s['exact'] = True; return s
-		if s['stop']: return s
-		print_zettel_search_stats(tags, s['name'])
+			s['inp'] =''; continue #refresh tags
+		print_list_or_return(s['entries']) #print
+		print_zettel_search_stats(s['tags_names'], s['name'])
 		if editor_select_mode: print_selected(prev_found, 1) #if in select mode
 		s['inp'] = s_prompt("(':' - options)")
 
@@ -658,34 +668,38 @@ def find_tags(s, prev_found):
 		if editor_select_mode: print_selected(prev_found, 1)
 		s['inp'] = s_prompt("(':' for commands)")
 
-def zettel_filter_lists(s, tags):
-	if s['tags']:
+def zettel_filter_lists(s):
+	s['entries'] = []; #keyword search
+	s['entries_title'] = read_main_z_title_like(s['name'])
+	s['entries_body'] = read_main_z_body_like(s['name'])
+	s['entries'] = s['entries_title'] + s['entries_body']
+	s['entries'] = list(dict.fromkeys(s['entries'])) #dedup
+	if s['tags'] and s['tags_prev'] != s['tags']: #tag update initiated
 		for tag in s['tags']:
-			tags.append(tag[1])
-	if len(tags) > 1: #if many tags
-		zettels_groups = []; intersected = []
-		for tag in tags: #find zettel groups for each tag
-			group = []
+			s['tags_names'].append(tag[1])
+		s['tags_prev'] = s['tags'] #store current tags
+		s['tags_names'] = list(dict.fromkeys(s['tags_names'])) #dedup
+		if len(s['tags_names']) > 1: #if many tags
+			zettels_groups = []; intersected = []
+			for tag in s['tags_names']: #find zettel groups for each tag
+				group = []
+				tagged = read_tags_tag(tag)
+				for tagged_entry in tagged:
+					found_id = tagged_entry[1]
+					zettel = read_main_id(found_id)
+					group.append(zettel)
+				zettels_groups.append(group) #a list of lists
+			for group in zettels_groups: #incrementally intersect
+				s['entries'] = list(set(s['entries']) & set(group))
+		elif len(s['tags_names']) == 1: #if only one tag
+			tag = s['tags_names'][0]; s['entries_tag'] = []
 			tagged = read_tags_tag(tag)
 			for tagged_entry in tagged:
 				found_id = tagged_entry[1]
 				zettel = read_main_id(found_id)
-				group.append(zettel)
-			zettels_groups.append(group) #a list of lists
-		for group in zettels_groups: #incrementally intersect
-			s['entries'] = list(set(s['entries']) & set(group))
-	elif len(tags) == 1: #if only one tag
-		tag = tags[0]; s['entries_tag'] = []
-		tagged = read_tags_tag(tag)
-		for tagged_entry in tagged:
-			found_id = tagged_entry[1]
-			zettel = read_main_id(found_id)
-			s['entries_tag'].append(zettel)
-		s['entries'] = list(set(s['entries']).intersection(s['entries_tag'] ))
-	s['found'] = print_list_or_return(s['entries'])
-	if s['found'] : s['exact'] = True
-	else: s['exact'] = False
-	return (s, tags,)
+				s['entries_tag'].append(zettel)
+			s['entries'] = list(set(s['entries']).intersection(s['entries_tag'] ))
+	return s
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ PRINT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 #DB ERROR CHECK
@@ -826,7 +840,8 @@ def print_search_zettel_ops():
 	divider()
 	print("'number' - select entry")
 	print("(t) - select tags for filter")
-	print("(c) - clear search query and start again")
+	print("(cw) - clear search keyword")
+	print("(ct) - clear search tags")
 	print_q()
 	print_qm()
 	
