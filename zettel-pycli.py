@@ -525,14 +525,15 @@ def zettel_search_ops(s):
 		s['found'] = s['entries'][int(inp)-1]
 	except (ValueError, IndexError): pass
 	finally:
-		if inp == "cw":  
+		if inp == 'ew': s['inp'] = ''; s['name'] = write_not_empty(s['name'], '')
+		elif inp == 'cw':  
 			s['inp'] = ''; s['name'] = ''; 
 			s['tags_prev'] = [(0,''),]; #must not equal to tags to force refresh
-		elif inp == "ct":  
+		elif inp == 'ct':  
 			s['inp'] = ''; s['tags_prev'] = [(0,''),]; #must not equal to tags
 			s['tags_names'] = []; s['tags'] = []; 
-		elif inp == "q": s['stop'] = True
-		elif inp == "t": 
+		elif inp == 'q': s['stop'] = True
+		elif inp == 't': 
 			editor_select_mode = True
 			s['tags'] = search_tags()
 			editor_select_mode = False
@@ -834,13 +835,14 @@ def print_git_ops():
 #SEARCHING ZETTEL
 def print_zettel_search_stats(tags, name):
 	print('filter by tag:', str_from_list(False, True, False, tags, None));
-	print('keywords find:', name)
+	print('phrase search:', name)
 	
 def print_search_zettel_ops():
 	divider()
 	print("'number' - select entry")
 	print("(t) - select tags for filter")
-	print("(cw) - clear search keyword")
+	print("(ew) - edit search phrase")
+	print("(cw) - clear search phrase")
 	print("(ct) - clear search tags")
 	print_q()
 	print_qm()
@@ -999,7 +1001,7 @@ def c_prompt(prompt):
 		inp = ''
 	return inp 
 	
-def s_prompt(prompt): divider(); return input(prompt+" >> ").strip()
+def s_prompt(prompt): divider(); return input(prompt+" > ").strip()
 def p(): divider(); input("░░░░░░░░░░░░░░░░░░░░░░ CONTINUE ░░░░░░░░░░░░░░░░░░░░░░").strip()
 def print_qc(): print('() - return | confirm')
 def print_q(): print('(q) - return')
