@@ -317,6 +317,15 @@ def rescan_meta(): #only when checking
 	add_to_db(metadata, insert_meta, current_db_path)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ZETTEL / TAG WRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def write_num_not_empty(type, prompt_str):
+	while True:
+		num = c_prompt(prompt_str)
+		try: 
+			if type == 'int': num = int(num); return num
+			elif type == 'float': num = float(num); return num
+			else: print('wrong numeric type supplied'); p()
+		except: print_num_wrong_input()
+		
 def write_not_empty(inject_text, flag, allow_exit):
 	name = '';
 	while not name: 
@@ -465,6 +474,9 @@ def zettel_ops(zettel, editor_select_mode):
 			if inp == '': return zettel
 			elif inp == 'ol': follow_links_z_id_from(z_id)
 			elif inp == 'il': follow_links_z_id_to(z_id)
+			elif inp == 'nol': follow_n_depth_links_z_id('outgoing', z_id)
+			elif inp == 'nil': follow_n_depth_links_z_id('incoming', z_id)
+			elif inp == 'nbl': follow_n_depth_links_z_id('both', z_id)
 			elif inp == 'e': zettel_edit_ops(zettel, z_id)
 			elif inp == 'qm': main_menu()
 		else:
@@ -570,6 +582,38 @@ def git_menu():
 		elif inp == "q": break
 		
 #▒▒▒▒▒▒▒▒▒▒▒▒ SEARCH OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+def follow_n_depth_links_z_id(flag, z_id):
+	def get_zettels(flag, ids, found_zettels):
+		ids_next = []; linked_zettels = [];
+		for z_id in ids:
+			if flag == 'outgoing': linked_zettels += list_by_links_z_id_from(z_id)[0]
+			elif flag == 'incoming': linked_zettels += list_by_links_z_id_to(z_id)[0]
+			elif flag == 'both': 
+				linked_zettels += list_by_links_z_id_from(z_id)[0]
+				linked_zettels += list_by_links_z_id_to(z_id)[0]
+		for zettel in linked_zettels:
+			if not zettel in found_zettels: #prevent dupes
+				#print(zettel);
+				#print(found_zettels); p()
+				nth_z_id = zettel[0]
+				found_zettels.append(zettel)
+				ids_next.append(nth_z_id)
+			else: pass
+		return (found_zettels, ids_next)
+	###
+	def find_n_depth_links_z_id(flag, z_id, depth):
+		current_zettel = read_main_id(z_id)
+		ids = [z_id]; found_zettels = [current_zettel]; n = 0 #init
+		while n < depth and ids:
+			result = get_zettels(flag, ids, found_zettels)
+			found_zettels = result[0]; ids = result[1]
+			n += 1
+		return found_zettels
+	#BEGIN
+	depth = write_num_not_empty('int', 'how many levels of links to open?')
+	found_zettels = find_n_depth_links_z_id(flag, z_id, depth)
+	print_many_zettels(found_zettels);p()
+	
 def follow_links_z_id_from(z_id):
 	z_title = read_main_id(z_id)[1]
 	result = list_by_links_z_id_from(z_id)
@@ -792,7 +836,7 @@ def print_test_warn():
 	print('this will generate a batch of zettel .md cards in it')
 	print('you will have to import them back into a database')
 	
-def print_test_wrong_input(): cl_divider(); print('make sure you enter numbers')
+def print_num_wrong_input(): cl_divider(); print('make sure you enter numbers')
 def print_made_tests():
 	cl_divider()
 	print('generated a number of test zettels')
@@ -820,7 +864,6 @@ def print_no_default_editor(option):
 def print_fallback_editor(inject_text): 
 	if inject_text:
 		divider()
-		print('current text field:')
 		print(inject_text)
 
 #ZETTEL WRITING / READING
@@ -848,6 +891,12 @@ def print_new_zettel_preview():
 def print_whole_zettel(zettel):
 	cl_divider()
 	print(format_zettel(zettel))
+	
+def print_many_zettels(zettels):
+	cl()
+	for zettel in zettels:
+		divider()
+		print(format_zettel(zettel))
 
 #SEARCHING ZETTEL
 def print_zettel_search_stats(tags, name):
@@ -941,7 +990,7 @@ def print_git_status():
 
 def print_git_log(entries):
 	cl_divider()
-	os.system("git log --branches --oneline -n "+entries); 
+	os.system("git log --branches --oneline -n "+str(entries)); 
 	
 def print_git_push():
 	cl_divider()
@@ -1003,6 +1052,9 @@ def print_zettel_ops():
 	print_qc('')
 	print('(ol) - outgoing links')
 	print('(il) - incoming links')
+	print('(nol) - print all n-depth outgoing links zettels')
+	print('(nil) - print all n-depth incoming links zettels')
+	print('(nbl) - print all n-depth both-ways links zettels')
 	print('(e) - show zettel edit options')
 	print_qm()
 	
@@ -1065,10 +1117,8 @@ def cl_divider(): cl(); divider()
 def git_info(): print_git_current_head()
 def git_status(): print_git_status()
 def git_log_f(): 
-	entries = s_prompt('commits to print (default is 20)')
-	try: entries = int(entries) #like a check
-	except: entries = 20
-	print_git_log(str(entries))
+	entries = write_num_not_empty('int', 'commits to print')
+	print_git_log(entries)
 	
 def git_launch_gitui(): os.system('gitui')
 def git_push(): print_git_push()
@@ -1086,7 +1136,7 @@ def git_revert_f():
 	comment = '# Enter the commit name to revert to below\n'
 	commit_name = write_not_empty(comment, flag=None, allow_exit=True)
 	if commit_name =='': return
-	os.system("git revert "+ commit_name)
+	os.system("git revert "+ '\"'+commit_name+'\"')
 	
 def git_reset_hard_f():
 	git_log_f(); p()
@@ -1094,7 +1144,7 @@ def git_reset_hard_f():
 	commit_name = write_not_empty(comment, flag=None, allow_exit=True)
 	if commit_name =='': return
 	inp = c_prompt("really? ('yes' to proceed)")
-	if inp == "yes": os.system("git reset --hard "+ commit_name)
+	if inp == "yes": os.system("git reset --hard "+ '\"'+commit_name+'\"')
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ FORMAT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def format_zettel(zettel):
@@ -1420,10 +1470,10 @@ def make_test_batch():
 	lorem = '''Lorem ipsum dolor sit amet, consectetur adipiscing elit. '''
 	print_test_warn()
 	try:
-		inp_num = int(s_prompt('how many zettels to make?'))
-		inp_links = int(s_prompt('how many links per zettel'))
-		inp_corr = float(s_prompt('amount of correct zettels (0.0..1.0)'))
-	except: print_test_wrong_input(); return False #failed
+		inp_num = write_num_not_empty('int', 'how many zettels to make?')
+		inp_links = write_num_not_empty('int', 'how many links per zettel')
+		inp_corr = write_num_not_empty('float', 'amount of correct zettels (0.0..1.0)')
+	except: print_num_wrong_input(); return False #failed
 	#perfect zettels
 	for i in range(inp_num):
 		frnd = random.random(); frnd2 = random.random(); frnd3 = random.random() 
