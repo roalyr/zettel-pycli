@@ -154,7 +154,7 @@ select_links_z_id_to = "SELECT * FROM links WHERE z_id_to = ?"
 update_main_z_body = 'UPDATE main SET z_body = ? WHERE id = ?'
 update_main_z_title = 'UPDATE main SET z_title = ? WHERE id = ?'
 
-update_tags_tag = 'UPDATE tags SET tag = ? WHERE tag = ?'
+update_tags_tag = 'UPDATE tags SET tag = REPLACE(tag, ?, ? )'
 
 #DELETE
 delete_meta_all = "DELETE FROM meta"
@@ -238,13 +238,13 @@ def rewrite_links_from(z_id, zettels):
 	remove_links_from(z_id)
 	write_links_from(z_id, zettels)
 	
-def rewrite_tags(z_id, tags): 
+def rewrite_zettel_tags(z_id, tags): #tags attached to zettel
 	remove_tags_z_id(z_id)
 	write_tags(z_id, tags)
 	rescan_taglist() #might contain new tags or remove old
 	
-def rename_tag(tag, name): 
-	add_to_db([name, tag], update_tags_tag, current_db_path)
+def rewrite_tags_tag(new_tag, old_tag): 
+	add_to_db([old_tag, new_tag], update_tags_tag, current_db_path)
 	rescan_taglist() #reflect changes
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ REMOVE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -392,12 +392,16 @@ def make_new_zettel():
 	new_zettel = read_main_id(z_id)
 	zettel_ops(new_zettel, editor_select_mode=False)
 
-def make_new_tag():
-	print_make_new_tag()
+def make_new_tag(old_tag):
 	comment = '# Write a new tag name below\n'
-	tag = write_not_empty(None, 'prompt', allow_exit=False)
-	t_id = write_taglist_tag([(tag,)])
-	return (t_id, tag)
+	if old_tag: #updating an old one
+		new_tag = write_not_empty(comment+old_tag, flag=None, allow_exit=False)
+		rewrite_tags_tag(new_tag, old_tag)
+		t_id = read_taglist_tags_like(new_tag)[0]
+	else: #making a new one
+		new_tag = write_not_empty(comment, flag=None, allow_exit=False)
+		t_id = write_taglist_tag([(new_tag,)])
+	return (t_id, new_tag)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ EDITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def zettel_picker(): #add ops to edit the list properly
@@ -430,7 +434,7 @@ def edit_links_z_id_from(z_id):
 	
 def edit_tags_z_id(z_id):
 	tags = tag_picker()
-	rewrite_tags(z_id, tags)
+	rewrite_zettel_tags(z_id, tags)
 
 def delete_zettel(z_id):
 	print('delete zettel')
@@ -500,7 +504,8 @@ def tag_ops(tag, editor_select_mode):
 		elif inp =='i': 
 			print_zettels_under_tag(titles, tag);
 			zettel_select_ops(zettels, editor_select_mode); #return tag
-		elif inp == "n": tag = make_new_tag(); return tag
+		elif inp == "n": new_tag = make_new_tag(None); return new_tag
+		elif inp == "e": new_tag = make_new_tag(tag[1]); return new_tag
 		elif inp == 'qm': main_menu()
 		print_tag_info(titles, listed_tag); print_tag_ops()
 	
@@ -543,7 +548,7 @@ def tag_search_ops(s):
 			s['inp'] = ''; comment = '# Edit your search phrase below\n'
 			s['name'] = write_not_empty(comment+s['name'], '', allow_exit=True)
 		elif inp == "cw": s['name'] = ''; s['inp'] = ''; s['entries'] = read_taglist_all() #reset
-		elif inp == "n": s['found'] = make_new_tag()
+		elif inp == "n": s['found'] = make_new_tag(None)
 		elif inp == "q": s['stop'] = True
 		elif inp == 'qm': main_menu()
 	return s
@@ -910,7 +915,7 @@ def print_selected(entries, i):
 	
 def print_list_or_return(entries):
 	num = 1
-	if len(entries) > 1:
+	if len(entries) >= 1:
 		cl_divider()
 		for entry in entries:
 			print(str(num)+'.', entry[1])
@@ -920,7 +925,7 @@ def print_list_or_return(entries):
 	elif len(entries) == 0: 
 		cl_divider()
 		print("nothing found ':' for options");
-	elif len(entries) == 1: 
+	if len(entries) == 1: 
 		return entries[0] #return what was found by narrowing down
 		
 def print_zettels_links_z_id_from(titles, current_title):
@@ -1085,6 +1090,7 @@ def print_tag_ops():
 	divider()
 	print_qc('')
 	print('(i) - inspect zettels under tag')
+	print('(e) - edit tag name (globally)')
 	print('(n) - make a new tag')
 	print_qm()
 
