@@ -5,8 +5,8 @@ default_editor = "nano" # a text editor command to call by default
 zettel_sort_tags = True # if true - sorts alphabetically
 zettel_sort_links = True # if true - sorts alphabetically
 
-zettel_draw_tags_in_line = False # if false - print tags in column in zettel
-zettel_draw_links_in_line = False # if false - print tags in column in zettel
+zettel_draw_tags_in_line = True # if false - print tags in column in zettel
+zettel_draw_links_in_line = True # if false - print tags in column in zettel
 zettel_numerate_links = False # draw numbers near each entry
 zettel_numerate_tags = False # draw numbers near each entry
 
@@ -56,9 +56,9 @@ path = os.path.join(os.getcwd(), database_name)
 current_db_path = os.path.join(os.getcwd(), database_name + '.db')
 zettel_template_name = "_template.md"
 if text_width < 30: print('minimal text width value is 30'); text_width = 30
-tw = textwrap.TextWrapper(text_width, replace_whitespace=True)
+tw = textwrap.TextWrapper(text_width)
 tw_w = textwrap.TextWrapper(text_width, replace_whitespace=False)
-tw_i = textwrap.TextWrapper(text_width, replace_whitespace=True, subsequent_indent='   ')
+tw_i = textwrap.TextWrapper(text_width, subsequent_indent='   ')
 
 marker_title = '[TITLE]'
 marker_tags = '[TAGS]'
@@ -807,14 +807,14 @@ def print_invalid_links(entries):
 		invalid_link_name = entry[3]
 		if z_id == id_prev: same_zettel = True
 		if same_zettel:
-			print(tw_i('   └─{0}'.format(invalid_link_name)))
+			print(tw_i.fill('   └─{0}'.format(invalid_link_name)))
 			same_zettel = False
 		else:
 			print()
-			print(tw_i('{0}. id: {1}, {2}'.format(str(num), str(z_id), z_title)))
-			print(tw_i('   file: {0}'.format(z_path)))
-			print(tw_i('   corrupt links:'))
-			print(tw_i('   └─{0}'.format(invalid_link_name)))
+			print(tw_i.fill('{0}. id: {1}, {2}'.format(str(num), str(z_id), z_title)))
+			print(tw_i.fill('   file: {0}'.format(z_path)))
+			print(tw_i.fill('   corrupt links:'))
+			print(tw_i.fill('   └─{0}'.format(invalid_link_name)))
 			num += 1
 		id_prev = z_id
 	print_invalid_links_warn()
@@ -826,7 +826,7 @@ def print_zettels_warnings(query, exec_str): #for other kinds of errors
 	divider()
 	for entry in entries:
 		z_id = entry[1]; z_title = read_main_id(z_id)[1]
-		print(tw_i('{0}. id: {1}, {2}'.format(str(num), str(z_id), z_title)))
+		print(tw_i.fill('{0}. id: {1}, {2}'.format(str(num), str(z_id), z_title)))
 		num += 1
 	return True
 	
@@ -919,7 +919,8 @@ def print_no_default_editor(option):
 def print_fallback_editor(inject_text): 
 	if inject_text:
 		divider()
-		print(tw_w.fill('{0}'.format(inject_text)))
+		for line in inject_text.splitlines():
+			print(tw_w.fill('{0}'.format(line)))
 
 def print_no_links_for_writing():
 	cl_divider(); 
@@ -957,13 +958,23 @@ you can now preview and edit your new zettel
 
 def print_whole_zettel(zettel):
 	cl_divider()
-	print(tw_w.fill(format_zettel(zettel).strip()))
+	try: title = zettel[1]; body = zettel[3]
+	except IndexError: 
+		title ='<no title / corrupted title>';
+		body ='<no text body / corrupted text body>'
+	print(tw.fill(title))
+	print(tw.fill(body))
 	
 def print_many_zettels(zettels):
 	cl()
 	for zettel in zettels:
 		divider()
-		print(tw_w.fill(format_zettel(zettel).strip()))
+		try: title = zettel[1]; body = zettel[3]
+		except IndexError: 
+			title ='<no title / corrupted title>';
+			body ='<no text body / corrupted text body>'
+		print(tw.fill(title))
+		print(tw.fill(body))
 
 #SEARCHING ZETTEL
 def print_zettel_search_stats(tags, name):
@@ -1204,23 +1215,6 @@ def git_reset_hard_f():
 	if inp == "yes": os.system("git reset --hard "+ '\"'+commit_name+'\"')
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ FORMAT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def format_zettel(zettel):
-	z_id = zettel[0]
-	try: title = zettel[1]; body = zettel[3]
-	except IndexError: 
-		title ='<no title / corrupted title>';
-		body ='<no text body / corrupted text body>'
-	tags = read_tags_z_id(z_id)
-	linked_zettels = list_by_links_z_id_from(z_id)[0]
-	tags_str = str_from_list(zettel_sort_tags, zettel_draw_tags_in_line, 
-		zettel_numerate_tags, tags, 2)
-	links_from_str = str_from_list(zettel_sort_links, zettel_draw_tags_in_line,
-		zettel_numerate_links, linked_zettels, 1)
-	return marker_title + '\n' + title + '\n\n' \
-	+ marker_body+ '\n' + body + '\n\n' \
-	+ marker_tags+ '\n' + tags_str + '\n\n' \
-	+ marker_links+ '\n' + links_from_str
-
 def list_by_tag(tag_id):
 	titles = []; tagged_zettels = []
 	listed_tag = read_taglist_id(tag_id)[1]
@@ -1520,7 +1514,36 @@ def make_test_zettels():
 	if make_test_batch(): print_made_tests()
 	
 def make_test_batch():
-	lorem = '''Lorem ipsum dolor sit amet, consectetur adipiscing elit. '''
+	lorem_raw = '''
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
+In sit amet congue sem. Proin a ligula aliquam, ullamcorper 
+augue quis, blandit leo. Nulla egestas feugiat urna, quis 
+sodales est egestas in. Aliquam blandit hendrerit porta. 
+Cras in molestie erat, sit amet fermentum velit. Phasellus ac 
+ex non lacus placerat euismod vel fringilla tellus. Donec 
+tempus tortor vestibulum sapien sollicitudin luctus. Nam 
+in est ac urna luctus maximus.
+Donec eu lorem a turpis tempus mollis. Aenean molestie porta 
+massa sit amet luctus. Nam volutpat maximus sem, et accumsan 
+diam pulvinar eget. Sed tempus rhoncus nunc vitae ornare. 
+Vestibulum maximus massa quis neque auctor rutrum. 
+Suspendisse feugiat, leo eget aliquet facilisis, est sem tincidunt 
+massa, malesuada pretium nibh nibh at turpis. Nam vehicula 
+est ac tellus facilisis ultrices.
+Morbi non eros gravida, rutrum sapien at, tincidunt velit.
+Cras consectetur magna laoreet tellus convallis, a sollicitudin lorem 
+ornare. Proin nisi velit, mollis ac rutrum mattis, pretium nec augue. 
+Integer vulputate vulputate ipsum pellentesque blandit. Pellentesque 
+a purus magna. Phasellus pulvinar orci est, eget semper sapien 
+blandit vitae. Pellentesque viverra sem quis turpis aliquet, quis venenatis 
+justo ultricies. Ut rutrum, ligula in viverra pellentesque, metus velit 
+sollicitudin sem, quis accumsan lacus turpis a mi. Nulla facilisi. 
+Vestibulum vehicula vulputate porta. Proin suscipit diam eu enim 
+dapibus, et volutpat erat consequat. '''
+	lorem_init = lorem_raw.split(' '); lorem_raw = []
+	for word in lorem_init:
+		lorem_raw.append(word.strip())
+	
 	print_test_warn()
 	try:
 		inp_num = write_num_not_empty('int', 'how many zettels to make?')
@@ -1529,6 +1552,11 @@ def make_test_batch():
 	except: print_num_wrong_input(); return False #failed
 	#perfect zettels
 	for i in range(inp_num):
+		lorem_full = ' '.join(random.sample(lorem_raw, len(lorem_raw)))
+		t = random.randrange(35)
+		r = random.randrange(len(lorem_full)-t)
+		lorem = tw.fill(lorem_full[:r])
+		title = tw.fill(lorem_full[r:r+t])
 		frnd = random.random(); frnd2 = random.random(); frnd3 = random.random() 
 		if frnd < 0.1: tags = 'performance, zettel, test, tags, python'
 		elif frnd < 0.2 and frnd >= 0.11: tags = 'test, zettel'
@@ -1550,7 +1578,7 @@ def make_test_batch():
 					if rnd == inp_num: rnd -= 2
 					links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
 			except ValueError: pass
-			zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i+1) \
+			zettel_template_test = marker_title + '\n' + title \
 			+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
 			+ tags + '\n\n' + marker_links + '\n' + links
 		else: #bad zettels
@@ -1570,7 +1598,7 @@ def make_test_batch():
 				+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
 				+ tags + '\n\n' + marker_links + '\n' + links
 			elif frnd3 < 0.66 and frnd >= 0.33:
-				zettel_template_test = marker_title + '\n' + 'Test zettel № ' + str(i+1) \
+				zettel_template_test = marker_title + '\n' + title + str(i+1) \
 				+ '\n\n' + marker_body + '\n\n' + marker_tags + '\n' \
 				+ tags + '\n\n' + marker_links + '\n' + links
 			elif frnd2 <= 1.0 and frnd >= 0.66:
