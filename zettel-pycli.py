@@ -18,10 +18,13 @@ search_draw_tags_in_line = True # if false - print tags in column in zettel
 search_numerate_titles = True # draw numbers near each entry
 search_numerate_tags = True # draw numbers near each entry
 
+text_width = 55 #in characters 55...80 should be good
+
 #▒▒▒▒▒▒▒▒▒▒▒▒ CREDITS & LICENCE ▒▒▒▒▒▒▒▒▒▒▒▒▒
 # https://writingcooperative.com/zettelkasten-how-one-german-
 #	scholar-was-so-freakishly-productive-997e4e0ca125 - idea
-# https://www.sqlitetutorial.net/sqlite-python/ - db oos
+# https://zettelkasten.de/introduction/ - method explanation
+# https://www.sqlitetutorial.net/sqlite-python/ - db ops
 # https://stackoverflow.com/a/63529754 - md links parsing
 # Personal thanks to folks from ToughSF who helped me.
 # 
@@ -44,14 +47,18 @@ search_numerate_tags = True # draw numbers near each entry
 # SOFTWARE.
 
 
-#▒▒▒▒▒▒▒▒▒▒▒▒ CONSTANTS ▒▒▒▒▒▒▒▒▒▒▒▒▒
+#▒▒▒▒▒▒▒▒▒▒▒▒ IMPORTS / CONSTANTS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 import os, fnmatch, shutil, pathlib, sqlite3, time, re, random, tempfile
-import subprocess, py_compile, gc
+import subprocess, py_compile, gc, textwrap
 from sqlite3 import Error
 
 path = os.path.join(os.getcwd(), database_name)
 current_db_path = os.path.join(os.getcwd(), database_name + '.db')
 zettel_template_name = "_template.md"
+if text_width < 30: print('minimal text width value is 30'); text_width = 30
+tw = textwrap.TextWrapper(text_width, replace_whitespace=True)
+tw_w = textwrap.TextWrapper(text_width, replace_whitespace=False)
+tw_i = textwrap.TextWrapper(text_width, replace_whitespace=True, subsequent_indent='   ')
 
 marker_title = '[TITLE]'
 marker_tags = '[TAGS]'
@@ -197,8 +204,8 @@ def write_taglist_tag(tags):
 def write_links_from(z_id, zettels):
 	entry_list = []
 	if not zettels:
-		print('no links provided for writing'); return
-	for zettel in zettels: #swaps tag ID with z_id
+		print_no_links_for_writing(); p(); return
+	for zettel in zettels:
 		entry_list.append((z_id, zettel[0]))
 	incr_add_to_db(entry_list, insert_links, current_db_path)
 	
@@ -323,7 +330,7 @@ def write_num_not_empty(type, prompt_str):
 		try: 
 			if type == 'int': num = int(num); return num
 			elif type == 'float': num = float(num); return num
-			else: print('wrong numeric type supplied'); p()
+			else: print_wrong_num_type(); p()
 		except: print_num_wrong_input()
 		
 def write_not_empty(inject_text, flag, allow_exit):
@@ -476,8 +483,8 @@ def zettel_ops(zettel, editor_select_mode):
 		inp = c_prompt('')
 		if not editor_select_mode:
 			if inp == '': return zettel
-			elif inp == 'ol': follow_links_z_id_from(z_id)
-			elif inp == 'il': follow_links_z_id_to(z_id)
+			elif inp == 'ol': follow_links_z_id('from', z_id)
+			elif inp == 'il': follow_links_z_id('to', z_id)
 			elif inp == 'nol': follow_n_depth_links_z_id('outgoing', z_id)
 			elif inp == 'nil': follow_n_depth_links_z_id('incoming', z_id)
 			elif inp == 'nbl': follow_n_depth_links_z_id('both', z_id)
@@ -618,21 +625,14 @@ def follow_n_depth_links_z_id(flag, z_id):
 	depth = write_num_not_empty('int', 'how many levels of links to open?')
 	found_zettels = find_n_depth_links_z_id(flag, z_id, depth)
 	print_many_zettels(found_zettels);p()
-	
-def follow_links_z_id_from(z_id):
-	z_title = read_main_id(z_id)[1]
-	result = list_by_links_z_id_from(z_id)
-	zettels = result[0]; titles = result[1]
-	while True:
-		print_zettels_links_z_id_from(titles, z_title)
-		if zettel_select_ops(zettels, editor_select_mode=False): return
 		
-def follow_links_z_id_to(z_id):
+def follow_links_z_id(flag, z_id):
 	z_title = read_main_id(z_id)[1]
-	result = list_by_links_z_id_to(z_id)
+	if flag =='to': result = list_by_links_z_id_to(z_id)
+	if flag =='from': result = list_by_links_z_id_from(z_id)
 	zettels = result[0]; titles = result[1]
 	while True:
-		print_zettels_links_z_id_to(titles, z_title)
+		print_zettels_links_z_id(flag, titles, z_title)
 		if zettel_select_ops(zettels, editor_select_mode=False): return
 	
 def search_zettels(editor_select_mode):
@@ -757,23 +757,46 @@ def search_tags(editor_select_mode): #must be passed in
 #DB ERROR CHECK
 def print_no_db_warn():
 	divider()
-	print('no database matching the name provided in this script')
-	print('check the name in the script header, or import or')
-	print('initiate the database via respective commands')
+	print(tw.fill('''
+no database matching the name provided in this script
+check the name in the script header, or import or
+initiate the database via respective commands
+'''.strip()))
 	
-def print_no_titles_warn(): print('\nthere are zettels without titles listed above, inspect')
-def print_no_bodies_warn(): print('\nthere are zettels without text listed above, fill them')
-def print_no_links_warn(): print('\nthere are unlinked zettels listed above, link them')
-def print_self_links_warn(): print('\nthere are zettels linking to themselves listed above')
+def print_no_titles_warn(): 
+	print(''); print(tw.fill('''
+there are zettels without titles listed above, inspect
+'''.strip()))
+
+def print_no_bodies_warn(): 
+	print(''); print(tw.fill('''
+there are zettels without text listed above, fill them
+'''.strip()))
+
+def print_no_links_warn(): 
+	print(''); print(tw.fill('''
+there are unlinked zettels listed above, link them
+'''.strip()))
+
+def print_self_links_warn(): 
+	print(''); print(tw.fill('''
+there are zettels linking to themselves listed above
+'''.strip()))
 	
 def print_invalid_links_warn():
-	print('\nthere are corrupt links in your zettels')
-	print('this error should occur after importing .md zettels')
-	print('which is why you shall fix the links in your .md files')
-	print('and then re-import them to database again')
-	print('optionally, you may ignore this warning')
-
-def print_check_passed(): divider(); print('all good, no corrupt links or unlinked zettels')
+	print(''); print(tw.fill('''
+there are corrupt links in your zettels
+this error should occur after importing .md zettels
+which is why you shall fix the links in your .md files
+and then re-import them to database again
+optionally, you may ignore this warning
+'''.strip()))
+	
+def print_check_passed(): 
+	divider(); 
+	print(tw.fill('''
+all good, no corrupt links or unlinked zettels
+'''.strip()))
 
 def print_invalid_links(entries):
 	if not entries: return False
@@ -784,14 +807,14 @@ def print_invalid_links(entries):
 		invalid_link_name = entry[3]
 		if z_id == id_prev: same_zettel = True
 		if same_zettel:
-			print('   └─', invalid_link_name)
+			print(tw_i('   └─{0}'.format(invalid_link_name)))
 			same_zettel = False
 		else:
 			print()
-			print(str(num)+'.', 'id:', str(z_id) + ',', z_title)
-			print('   file:', z_path)
-			print('   corrupt links:')
-			print('   └─', invalid_link_name)
+			print(tw_i('{0}. id: {1}, {2}'.format(str(num), str(z_id), z_title)))
+			print(tw_i('   file: {0}'.format(z_path)))
+			print(tw_i('   corrupt links:'))
+			print(tw_i('   └─{0}'.format(invalid_link_name)))
 			num += 1
 		id_prev = z_id
 	print_invalid_links_warn()
@@ -803,190 +826,218 @@ def print_zettels_warnings(query, exec_str): #for other kinds of errors
 	divider()
 	for entry in entries:
 		z_id = entry[1]; z_title = read_main_id(z_id)[1]
-		print(str(num)+'.', 'id:', str(z_id) + ',', z_title)
+		print(tw_i('{0}. id: {1}, {2}'.format(str(num), str(z_id), z_title)))
 		num += 1
 	return True
 	
 #DB MAKING
 def print_init_new_db():
 	cl_divider()
-	print('you are about to create an empty database')
-	print('the new database will be created in current folder')
-	print('please enter a unique name for it')
+	print(tw.fill('''
+you are about to create an empty database, the new database 
+will be created in current folder please enter a unique name for it
+'''.strip()))
 
-def print_db_exists(): cl_divider(); print('a database like this already exists, aborting')
+def print_db_exists(): 
+	cl_divider()
+	print(tw.fill('''
+a database like this already exists, aborting
+'''.strip()))
+
 def print_importing_warn():
 	cl_divider()
-	print('you are about to import your .md zettels to database')
-	print('make sure the folder with zettels is in the same')
-	print('directory as this application')
-	print('folders with nested sub-folders are not supported')
-	print('that will lead to corrupted links')
-
+	print(tw.fill('''
+you are about to import your .md zettels to database
+make sure the folder with zettels is in the same
+directory as this application
+folders with nested sub-folders are not supported
+that will lead to corrupted links
+'''.strip()))
+	
 def print_importing_succeeded(database_name, t):
 	divider()
-	print('success, database built in:', t, 's')
-	print('to use the database rename file to match:', database_name+'.db')
-	print('this is the name given in the application options')
-	print('do not forget to review the database for errors')
-
+	print(tw.fill('''
+success, database built in: {0} s,
+to use the database rename file to match: {1}.db
+this is the name given in the application options
+do not forget to review the database for errors
+'''.format(t, database_name).strip()))
+	
 def print_importing_failed():
 	divider()
-	print('wrong folder name, aborting...')
+	print(tw.fill('''
+wrong folder name, aborting...
+'''.strip()))
 	
 #TEST
 def print_test_warn():
 	cl_divider()
-	print('make sure you have backed up your journal folder')
-	print('this will generate a batch of zettel .md cards in it')
-	print('you will have to import them back into a database')
+	print(tw.fill('''
+make sure you have backed up your journal folder
+this will generate a batch of zettel .md cards in it
+you will have to import them back into a database
+'''.strip()))
 	
-def print_num_wrong_input(): cl_divider(); print('make sure you enter numbers')
 def print_made_tests():
 	cl_divider()
-	print('generated a number of test zettels')
-	print("don't forget to import them into the database")
+	print(tw.fill('''
+generated a number of test zettels
+don't forget to import them into the database
+'''.strip()))
 
 #WRITING GENERAL 
+def print_num_wrong_input(): 
+	cl_divider(); 
+	print(tw.fill('''
+make sure you enter numbers
+'''.strip()))
+
+def print_wrong_num_type(): 
+	cl_divider(); 
+	print(tw.fill('''
+wrong numeric type supplied
+'''.strip()))
+
 def print_abort_writing():
 	cl_divider()
-	print('no text was written, you can try again or abort')
-	print("() - resume writing")
+	print(tw.fill('no text was written, you can try again or abort'))
+	print(tw_i.fill('() - resume writing'))
 	print_qm()
 	
 def print_abort_writing_quit_allowed():
 	cl_divider()
-	print('no text was written, you can try again or abort')
-	print("() - resume writing")
+	print(tw.fill('no text was written, you can try again or abort'))
+	print(tw_i.fill('() - resume writing'))
 	print_q()
 	print_qm()
 	
 def print_no_default_editor(option): 
 	cl_divider(); 
-	print('unable to use default editor:', option)
-	print('will switch to standard python input')
+	print(tw.fill('unable to use default editor: {0}'.format(option)))
+	print(tw.fill('will switch to standard python input'))
 	
 def print_fallback_editor(inject_text): 
 	if inject_text:
 		divider()
-		print(inject_text)
+		print(tw_w.fill('{0}'.format(inject_text)))
 
+def print_no_links_for_writing():
+	cl_divider(); 
+	print(tw.fill('no links provided for writing'))
+	
 #ZETTEL WRITING / READING
-def print_zettels_select(): cl_divider(); print('select zettels that you want to LINK to')
+def print_zettels_select():
+	cl_divider(); 
+	print(tw.fill('select zettels that you want to LINK to'))
+	
 def print_tags_select():
 	cl_divider()
-	print('select a suitable TAG for your zettel')
-	print('you can either search for existing tag')
-	print('or write a new one if no suitable found')
+	print(tw.fill('''
+select a suitable TAG for your zettel you can either
+search for existing tag or write a new one if no suitable found
+'''.strip()))
 
 def print_title_select():
 	cl_divider()
-	print('select a suitable TITLE for your zettel')
-	print('it must not be empty')
+	print(tw.fill('''
+select a suitable TITLE for your zettel, it must not be empty
+'''.strip()))
 
 def print_body_select():
 	cl_divider()
-	print('enter the TEXT BODY of the zettel')
-	print('it must not be empty')
+	print(tw.fill('''
+enter the TEXT BODY of the zettel, it must not be empty
+'''.strip()))
 
 def print_new_zettel_preview():
 	cl_divider()
-	print('you can now preview and edit your new zettel')
+	print(tw.fill('''
+you can now preview and edit your new zettel
+'''.strip()))
 
 def print_whole_zettel(zettel):
 	cl_divider()
-	print(format_zettel(zettel))
+	print(tw_w.fill(format_zettel(zettel).strip()))
 	
 def print_many_zettels(zettels):
 	cl()
 	for zettel in zettels:
 		divider()
-		print(format_zettel(zettel))
+		print(tw_w.fill(format_zettel(zettel).strip()))
 
 #SEARCHING ZETTEL
 def print_zettel_search_stats(tags, name):
-	print('filter by tag:', str_from_list(False, True, False, tags, None));
-	print('phrase search:', name)
+	s = str_from_list(False, True, False, tags, None).strip()
+	print(tw_i.fill('filter by tag: {0}'.format(s)))
+	print(tw_i.fill('phrase search: {0}'.format(name)))
 
 def print_selected(entries, i):
-	strn = str_from_list(False, True, False, entries, i)
+	strn = str_from_list(False, True, False, entries, i).strip()
 	divider()
-	print('selected:', strn)
+	print(tw_i.fill('selected: {0}'.format(strn)))
 	
 def print_list_or_return(entries):
 	num = 1
 	if len(entries) >= 1:
 		cl_divider()
 		for entry in entries:
-			print(str(num)+'.', entry[1])
+			print(tw_i.fill('{0}. {1}'.format(str(num), entry[1])))
 			num += 1
 		divider()
-		print('entries found:', len(entries));
+		print(tw_i.fill('entries found: {0}'.format(len(entries))))
 	elif len(entries) == 0: 
 		cl_divider()
-		print("nothing found ':' for options");
+		print(tw.fill("nothing found ':' for options"))
 	if len(entries) == 1: 
 		return entries[0] #return what was found by narrowing down
 		
-def print_zettels_links_z_id_from(titles, current_title):
+def print_zettels_links_z_id(flag, titles, current_title):
 	num = 1
 	cl_divider()
 	for title in titles:
-		print(str(num)+'.', title)
+		print(tw_i.fill('{0}. {1}'.format(str(num), title)))
 		num += 1
-	print('\nzettels linked by:', current_title, '-', len(titles))
-	
-def print_zettels_links_z_id_to(titles, current_title):
-	num = 1
-	cl_divider()
-	for title in titles:
-		print(str(num)+'.', title)
-		num += 1
-	print('\nzettels linking to:', current_title, '-', len(titles))
+	print()
+	if flag == 'from': print(tw.fill('zettels linked by: {0} - {1}'.format(current_title, len(titles))))
+	elif flag == 'to': print(tw.fill('zettels linking to: {0} - {1}'.format(current_title, len(titles))))
 
 #SEARCHING / MAKING TAGS
-def print_all_tags():
-	enumerate = False
-	strn = str_from_list(search_sort_tags, search_draw_tags_in_line,
-		search_numerate_tags, read_taglist_all(), 1)
-	divider()
-	print('available tags:'); print(strn);
-	
 def print_tag_search_stats(name):
-	print('phrase search:', name)
+	print(tw_i.fill('phrase search: {0}'.format(name)))
 	
 def print_tag_info(titles, listed_tag):
 	cl_divider()
-	print('selected tag:', listed_tag)
-	print('zettels under tag:', len(titles))
+	print(tw_i.fill('selected tag: {0}'.format(listed_tag)))
+	print(tw_i.fill('zettels under tag: {0}'.format(len(titles))))
 	
 def print_zettels_under_tag(titles, tag):
 	num = 1
 	cl_divider()
 	for title in titles:
-		print(str(num)+'.', title)
+		print(tw_i.fill('{0}. {1}'.format(str(num), title)))
 		num += 1
-	print('\nzettels under tag:', tag[1], '-', len(titles))
+	print()
+	print(tw_i.fill('zettels under tag: {0} - {1}'.format(tag[1], len(titles))))
 
 #DB META
 def print_db_meta(db_name):
 	meta = read_meta_all(db_name)
 	cl_divider()
-	print('database name:', meta[1])
-	print('created:', meta[2])
-	print('total number of zettels:', meta[3])
-	print('total number of links:', meta[4])
+	print(tw_i.fill('database name: {}'.format(meta[1])))
+	print(tw_i.fill('created: {}'.format(meta[2])))
+	print(tw_i.fill('total number of zettels: {}'.format(meta[3])))
+	print(tw_i.fill('total number of links: {}'.format(meta[4])))
 	divider()
-	print('warnings:')
-	print('zettels without links:', meta[5])
-	print('zettels that link to themselves:', meta[6])
-	print('empty zettels:', meta[7])
-	print('zettels without titles:', meta[8])
+	print(tw_i.fill('warnings:'))
+	print(tw_i.fill('zettels without links: {}'.format(meta[5])))
+	print(tw_i.fill('zettels that link to themselves: {}'.format(meta[6])))
+	print(tw_i.fill('empty zettels: {}'.format(meta[7])))
+	print(tw_i.fill('zettels without titles: {}'.format(meta[8])))
 
 #GIT OPS
 def print_git_current_head(): 
 	divider() 
-	print('Current head:'); 
+	print(tw_i.fill('Current head:'))
 	os.system("git log --branches --oneline -n 1")
 
 def print_git_status():
@@ -1003,64 +1054,64 @@ def print_git_push():
 	
 def print_git_add_modified():
 	cl_divider()
-	print('New / modified files:'); 
+	print(tw_i.fill('New / modified files:'))
 	os.system("git add . ")
 	os.system("git status --short")
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ MENUS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def print_main_ops():
 	cl_divider()
-	print('(i) - show statistics')
-	print('(z) - find zettel to enter the database')
-	print('(t) - browse tags in the database')
-	print('(r) - review zettels for errors in links and content')
-	print('(n) - start writing a new zettel')
-	print('(init) - make a new database (name in script header)')
-	print('(temp) - generate a template .md zettel')
-	print('(test) - generate a batch of test zettels')
-	print('(import) - import .md zettels to the database')
-	print('(compile) - compile this .py into .pyc for safety')
-	print('(git) - git menu')
-	print('(q) - quit')
+	print(tw_i.fill('(i) - show statistics'))
+	print(tw_i.fill('(z) - find zettel to enter the database'))
+	print(tw_i.fill('(t) - browse tags in the database'))
+	print(tw_i.fill('(r) - review zettels for errors in links and content'))
+	print(tw_i.fill('(n) - start writing a new zettel'))
+	print(tw_i.fill('(init) - make a new database (name in script header)'))
+	print(tw_i.fill('(temp) - generate a template .md zettel'))
+	print(tw_i.fill('(test) - generate a batch of test zettels'))
+	print(tw_i.fill('(import) - import .md zettels to the database'))
+	print(tw_i.fill('(compile) - compile this .py into .pyc for safety'))
+	print(tw_i.fill('(git) - git menu'))
+	print(tw_i.fill('(q) - quit'))
 
 def print_git_ops():
 	cl_divider()
-	print('() - current')
-	print('(l) - log')
-	print('(s) - status')
-	print('(c) - commit all')
-	print('(p) - push')
-	print('(r) - revert')
-	print('(ha) - hard reset')
-	print('(u) - launch "gitui" (must be installed)')
+	print(tw_i.fill('() - current'))
+	print(tw_i.fill('(l) - log'))
+	print(tw_i.fill('(s) - status'))
+	print(tw_i.fill('(c) - commit all'))
+	print(tw_i.fill('(p) - push'))
+	print(tw_i.fill('(r) - revert'))
+	print(tw_i.fill('(ha) - hard reset'))
+	print(tw_i.fill('(u) - launch "gitui" (must be installed)'))
 	print_q()
 
 #ZETTEL OPS MENUS
 def print_search_zettel_ops():
 	divider()
-	print("'number' - select entry")
-	print("(t) - select tags for filter")
-	print("(ew) - edit search phrase")
-	print("(cw) - clear search phrase")
-	print("(ct) - clear search tags")
+	print(tw_i.fill("'number' - select entry"))
+	print(tw_i.fill("(t) - select tags for filter"))
+	print(tw_i.fill("(ew) - edit search phrase"))
+	print(tw_i.fill("(cw) - clear search phrase"))
+	print(tw_i.fill("(ct) - clear search tags"))
 	print_qc('q')
 	print_qm()
 	
 def print_select_zettel_ops():
 	divider()
-	print("'number' - inspect entry")
+	print(tw_i.fill("'number' - inspect entry"))
 	print_qc('')
 	print_qm()
 
 def print_zettel_ops():
 	divider()
 	print_qc('')
-	print('(ol) - outgoing links')
-	print('(il) - incoming links')
-	print('(nol) - print all n-depth outgoing links zettels')
-	print('(nil) - print all n-depth incoming links zettels')
-	print('(nbl) - print all n-depth both-ways links zettels')
-	print('(e) - show zettel edit options')
+	print(tw_i.fill('(ol) - outgoing links'))
+	print(tw_i.fill('(il) - incoming links'))
+	print(tw_i.fill('(nol) - print all n-depth outgoing links zettels'))
+	print(tw_i.fill('(nil) - print all n-depth incoming links zettels'))
+	print(tw_i.fill('(nbl) - print all n-depth both-ways links zettels'))
+	print(tw_i.fill('(e) - show zettel edit options'))
 	print_qm()
 	
 def print_zettel_ops_lim():
@@ -1070,28 +1121,28 @@ def print_zettel_ops_lim():
 
 def print_zettel_edit_ops():
 	divider()
-	print('(n) - edit title (name)')
-	print('(b) - edit text body')
-	print('(l) - edit links')
-	print('(t) - edit tags')
-	print('(d) - delete zettel')
+	print(tw_i.fill('(n) - edit title (name)'))
+	print(tw_i.fill('(b) - edit text body'))
+	print(tw_i.fill('(l) - edit links'))
+	print(tw_i.fill('(t) - edit tags'))
+	print(tw_i.fill('(d) - delete zettel'))
 
 #TAG OPS MENUS
 def print_search_tag_ops():
 	divider()
-	print("'number' - select entry")
-	print("(ew) - edit search phrase")
-	print("(cw) - clear search phrase")
-	print('(n) - make a new tag')
+	print(tw_i.fill("'number' - select entry"))
+	print(tw_i.fill("(ew) - edit search phrase"))
+	print(tw_i.fill("(cw) - clear search phrase"))
+	print(tw_i.fill('(n) - make a new tag'))
 	print_qc('q')
 	print_qm()
 	
 def print_tag_ops():
 	divider()
 	print_qc('')
-	print('(i) - inspect zettels under tag')
-	print('(e) - edit tag name (globally)')
-	print('(n) - make a new tag')
+	print(tw_i.fill('(i) - inspect zettels under tag'))
+	print(tw_i.fill('(e) - edit tag name (globally)'))
+	print(tw_i.fill('(n) - make a new tag'))
 	print_qm()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ STANDARD PROMPTS ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -1107,14 +1158,14 @@ def s_prompt(prompt):
 	except KeyboardInterrupt: inp = ''
 	return inp 
 	
-def p(): divider(); input("░░░░░░░░░░░░░░░░░░░░░░ CONTINUE ░░░░░░░░░░░░░░░░░░░░░░").strip()
-def print_qc(ch): print('('+ch+') - return | confirm')
-def print_q(): print('(q) - return')
-def print_qm(): print('(qm) - return to main menu | abort everything')
+def p(): divider(); l=(text_width-10)//2; s="░"*l+" CONTINUE "+"░"*l; input(s)
+def print_qc(ch): print(tw_i.fill("({0}) - return | confirm".format(ch)))
+def print_q(): print(tw_i.fill('(q) - return'))
+def print_qm(): print(tw_i.fill('(qm) - return to main menu | abort everything'))
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CLEAR SCREEN AND DIVIDER ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def divider(): 
-	d_line = '-------------------------------------------------------'
+	d_line = '─' * text_width
 	print(d_line)
 def cl(): os.system('cls' if os.name == 'nt' else 'clear')
 def cl_divider(): cl(); divider()
@@ -1291,7 +1342,7 @@ def add_to_db(entry, exec_line, db_path):
 				elif len(entry) == 3: c.execute(exec_line, (entry[0], entry[1], entry[2],))
 				elif len(entry) == 8: c.execute(exec_line, (entry[0], entry[1], entry[2],
 					entry[3], entry[4], entry[5], entry[6], entry[7],))
-				else: 
+				else: #an exception
 					print('Attempted to write', len(entry), 'fields, which is not supported')
 					print('The SQLite command is:', exec_line)
 					quit()
@@ -1313,7 +1364,7 @@ def incr_add_to_db(entry_list, exec_line, db_path):
 					if len(entry) == 1: c.execute(exec_line, (entry[0],))
 					elif len(entry) == 2: c.execute(exec_line, (entry[0], entry[1],))
 					elif len(entry) == 3: c.execute(exec_line, (entry[0], entry[1], entry[2],))
-					else: 
+					else:  #an exception
 						print('Attempted to write', len(entry), 'fields, which is not supported')
 						print('The SQLite command is:', exec_line)
 						quit()
@@ -1460,17 +1511,13 @@ def compile_myself():
 		optimize=2,)
 	p()
 	
-def make_template():
-	gen_template();
-	print('generated a non-indexed template zettel:', zettel_template_name)
+def gen_template():
+	f = open(zettel_template_name, "w")
+	f.write(zettel_template)
+	f.close(); p()
 	
 def make_test_zettels():
 	if make_test_batch(): print_made_tests()
-
-def gen_template():
-	f = open(path + "/" + zettel_template_name, "w")
-	f.write(zettel_template)
-	f.close()
 	
 def make_test_batch():
 	lorem = '''Lorem ipsum dolor sit amet, consectetur adipiscing elit. '''
