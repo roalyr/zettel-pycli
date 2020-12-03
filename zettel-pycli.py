@@ -3,20 +3,9 @@ database_name = "my_vault" # default name for new databases
 default_editor = "nano" # a text editor command to call by default
 # use "python" to disable prompt and always use native input
 zettel_sort_tags = True # if true - sorts alphabetically
-zettel_sort_links = True # if true - sorts alphabetically
-
-zettel_draw_tags_in_line = True # if false - print tags in column in zettel
-zettel_draw_links_in_line = True # if false - print tags in column in zettel
-zettel_numerate_links = False # draw numbers near each entry
-zettel_numerate_tags = False # draw numbers near each entry
-
+zettel_sort_links = False # if true - sorts alphabetically
 search_sort_tags = False # if true - sorts alphabetically
 search_sort_titles = False # if true - sorts alphabetically
-
-search_draw_titles_in_line = False # if false - print titles in column in search
-search_draw_tags_in_line = True # if false - print tags in column in zettel
-search_numerate_titles = True # draw numbers near each entry
-search_numerate_tags = True # draw numbers near each entry
 
 text_width = 55 #in characters 55...80 should be good
 
@@ -56,9 +45,11 @@ path = os.path.join(os.getcwd(), database_name)
 current_db_path = os.path.join(os.getcwd(), database_name + '.db')
 zettel_template_name = "_template.md"
 if text_width < 30: print('minimal text width value is 30'); text_width = 30
+indent = ' '*7
 tw = textwrap.TextWrapper(text_width)
-tw_w = textwrap.TextWrapper(text_width, replace_whitespace=False)
-tw_i = textwrap.TextWrapper(text_width, subsequent_indent='   ')
+tw_w = textwrap.TextWrapper(text_width-1, initial_indent=' ', subsequent_indent=' ', replace_whitespace=False)
+tw_i = textwrap.TextWrapper(text_width, subsequent_indent=indent)
+tw_ii = textwrap.TextWrapper(text_width-len(indent), initial_indent=indent, subsequent_indent=indent)
 
 marker_title = '[TITLE]'
 marker_tags = '[TAGS]'
@@ -664,8 +655,9 @@ def search_zettels(editor_select_mode):
 	def zettel_filter_lists(s):
 		s['entries'] = []; #keyword search
 		s['entries_title'] = read_main_z_title_like(s['name'])
-		s['entries_body'] = read_main_z_body_like(s['name'])
-		s['entries'] = s['entries_title'] + s['entries_body']
+		#suspend this feature for now
+		#s['entries_body'] = read_main_z_body_like(s['name'])
+		s['entries'] = s['entries_title'] #+ s['entries_body']
 		s['entries'] = list(dict.fromkeys(s['entries'])) #dedup
 		for tag in s['tags']:
 			s['tags_names'].append(tag[1])
@@ -958,32 +950,51 @@ you can now preview and edit your new zettel
 
 def print_whole_zettel(zettel):
 	cl_divider()
-	try: title = zettel[1]; body = zettel[3]
-	except IndexError: 
-		title ='<no title / corrupted title>';
-		body ='<no text body / corrupted text body>'
-	print(tw.fill(title))
-	print(tw.fill(body))
+	print_single_zettel(zettel)
 	
 def print_many_zettels(zettels):
 	cl()
 	for zettel in zettels:
 		divider()
-		try: title = zettel[1]; body = zettel[3]
-		except IndexError: 
-			title ='<no title / corrupted title>';
-			body ='<no text body / corrupted text body>'
-		print(tw.fill(title))
-		print(tw.fill(body))
+		print_single_zettel(zettel)
+
+def print_single_zettel(zettel):
+	try: title = zettel[1]; body = zettel[3]
+	except IndexError: 
+		title ='<no title / corrupted title>';
+		body ='<no text body / corrupted text body>'
+	tags = read_tags_z_id(zettel[0]) #tags
+	tags_str = str_from_list(zettel_sort_tags, tags, 2, '', ' ░ ', '').strip()
+	links = read_links_z_id_from(zettel[0]) #lnks
+	linked_zettels = []
+	for link in links:
+		linked_zettel = read_main_id(link[2])
+		linked_zettels.append(linked_zettel)
+	links_str = str_from_list(zettel_sort_links, linked_zettels, 1, '', ' ░ ', '').strip()
+	print_header('░', title), print() #printing
+	for line in body.splitlines():
+		print(tw_w.fill('{0}'.format(line)))
+	print(); print('tags:'); print(tw_ii.fill(tags_str))
+	print('links:'); print(tw_ii.fill(links_str)); print()
+	
+def print_header(sym, name):
+	if len(name) < text_width: 
+		l=(text_width - len(name)-2)//2; 
+		name=sym*l+' '+name+' '+sym*l;
+		if len(name) < text_width: name += sym #compensate
+		print(name)
+	else: 
+		print(tw.fill(name))
+		print(sym*text_width)
 
 #SEARCHING ZETTEL
 def print_zettel_search_stats(tags, name):
-	s = str_from_list(False, True, False, tags, None).strip()
+	s = str_from_list(False, tags, None, '', ' | ', '').strip()
 	print(tw_i.fill('filter by tag: {0}'.format(s)))
 	print(tw_i.fill('phrase search: {0}'.format(name)))
 
 def print_selected(entries, i):
-	strn = str_from_list(False, True, False, entries, i).strip()
+	strn = str_from_list(False, entries, i, '', ' | ', '').strip()
 	divider()
 	print(tw_i.fill('selected: {0}'.format(strn)))
 	
@@ -1249,17 +1260,19 @@ def list_by_links_z_id_to(z_id):
 		titles.append(z_title)
 	return (linked_zettels, titles,)
 
-def str_from_list(sort_flag, draw_flag, numerate, init, i):
-	def process(fin, numerate, le):
-		strn = ''; num = 1; dot = '. '; pos = 0
-		for entry in fin: 
-			if numerate:
-				if not pos == len(fin)-1: strn += str(num)+dot+str(entry)+le; num += 1
-				else: strn += str(num)+dot+str(entry)+'.' #final symbol control
-			else:
-				if not pos == len(fin)-1: strn += str(entry)+le; num += 1
-				else: strn += str(entry)+'.' #final symbol control
-			pos += 1
+def str_from_list(sort_flag, init, i, li, lm, le):
+	def process(fin, li, lm, le):
+		strn = ''; pos = 0
+		if len(fin) == 1:
+			strn += li + fin[0] +le
+		elif len(fin) == 2:
+			strn += li + fin[0] + lm + fin[1] +le
+		else:
+			for entry in fin: 
+				if pos == 0: strn += li + str(entry) + lm
+				elif not pos == len(fin)-1: strn += str(entry)+lm
+				else: strn += str(entry)+le
+				pos += 1
 		return strn
 	fin = []; 
 	if i:
@@ -1267,8 +1280,7 @@ def str_from_list(sort_flag, draw_flag, numerate, init, i):
 	else: 
 		for entry in init: fin.append(entry)
 	if sort_flag: fin.sort()
-	if draw_flag: strn = process(fin, numerate, ', ')
-	else: strn = process(fin, numerate, ',\n')
+	strn = process(fin, li, lm, le)
 	return strn
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
