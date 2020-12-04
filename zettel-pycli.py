@@ -77,7 +77,8 @@ create_main_table = '''
 create_links_table = '''
 	CREATE TABLE IF NOT EXISTS links (
 		id integer PRIMARY KEY,
-		z_id_from integer NOT NULL, z_id_to integer NOT NULL
+		z_id_from integer NOT NULL, z_id_to integer NOT NULL,
+		desc text NOT NULL
 	); '''
 create_no_links_table = '''
 	CREATE TABLE IF NOT EXISTS no_links (
@@ -106,7 +107,7 @@ create_taglist_table = '''
 
 #INSTERT
 insert_main = '''INSERT INTO main ( z_title, z_path, z_body ) VALUES ( ?, ?, ? ) '''
-insert_links = '''INSERT INTO links ( z_id_from, z_id_to ) VALUES ( ?, ? ) '''
+insert_links = '''INSERT INTO links ( z_id_from, z_id_to, desc ) VALUES ( ?, ?, ? ) '''
 insert_self_links = '''INSERT INTO self_links ( z_id_from ) VALUES ( ? ) '''
 insert_no_links = '''INSERT INTO no_links ( z_id_from ) VALUES ( ? ) '''
 insert_no_bodies = '''INSERT INTO no_bodies ( z_id_from ) VALUES ( ? ) '''
@@ -151,6 +152,8 @@ select_links_z_id_to = "SELECT * FROM links WHERE z_id_to = ?"
 #UPDATE
 update_main_z_body = 'UPDATE main SET z_body = ? WHERE id = ?'
 update_main_z_title = 'UPDATE main SET z_title = ? WHERE id = ?'
+
+update_links_desc = 'UPDATE links SET desc = ? WHERE id = ?'
 
 update_tags_tag = 'UPDATE tags SET tag = REPLACE(tag, ?, ? )'
 
@@ -197,7 +200,8 @@ def write_links_from(z_id, zettels):
 	if not zettels:
 		print_no_links_for_writing(); p(); return
 	for zettel in zettels:
-		entry_list.append((z_id, zettel[0]))
+		desc = 'Link to '+zettel[1]+' because...'
+		entry_list.append((z_id, zettel[0], desc))
 	incr_add_to_db(entry_list, insert_links, current_db_path)
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ READING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -389,13 +393,15 @@ def make_new_zettel():
 	print_new_zettel_preview(); p()
 	new_zettel = read_main_id(z_id)
 	zettel_ops(new_zettel, editor_select_mode=False)
+	return new_zettel
 
 def make_new_tag(old_tag):
 	comment = '# Write a new tag name below\n'
 	if old_tag: #updating an old one
 		new_tag = write_not_empty(comment+old_tag, flag=None, allow_exit=False)
 		rewrite_tags_tag(new_tag, old_tag)
-		t_id = read_taglist_tags_like(new_tag)[0]
+		try: t_id = read_taglist_tags_like(new_tag)[0]
+		except IndexError: print_detached_tag_rename(); p(); main_menu()
 	else: #making a new one
 		new_tag = write_not_empty(comment, flag=None, allow_exit=False)
 		t_id = write_taglist_tag([(new_tag,)])
@@ -466,6 +472,13 @@ def zettel_ops(zettel, editor_select_mode):
 		elif inp == 'l': edit_links_z_id_from(z_id)
 		elif inp == 't': edit_tags_z_id(z_id)
 		elif inp == 'd': delete_zettel(z_id); main_menu()
+	###
+	def zettel_extra_ops(zettel, z_id):
+		print_whole_zettel(zettel); print_zettel_extra_ops()
+		inp = c_prompt('')
+		if inp == 'nol': follow_n_depth_links_z_id('outgoing', z_id)
+		elif inp == 'nil': follow_n_depth_links_z_id('incoming', z_id)
+		elif inp == 'nbl': follow_n_depth_links_z_id('both', z_id)
 	#BEGIN
 	z_id = zettel[0]; z_title = zettel[1]; z_body = zettel[3]
 	if not editor_select_mode: print_whole_zettel(zettel); print_zettel_ops() #init
@@ -476,9 +489,7 @@ def zettel_ops(zettel, editor_select_mode):
 			if inp == '': return zettel
 			elif inp == 'ol': follow_links_z_id('from', z_id)
 			elif inp == 'il': follow_links_z_id('to', z_id)
-			elif inp == 'nol': follow_n_depth_links_z_id('outgoing', z_id)
-			elif inp == 'nil': follow_n_depth_links_z_id('incoming', z_id)
-			elif inp == 'nbl': follow_n_depth_links_z_id('both', z_id)
+			elif inp == 'x': zettel_extra_ops(zettel, z_id)
 			elif inp == 'e': zettel_edit_ops(zettel, z_id)
 			elif inp == 'qm': main_menu()
 		else:
@@ -502,7 +513,6 @@ def tag_ops(tag, editor_select_mode):
 		elif inp =='i': 
 			print_zettels_under_tag(titles, tag);
 			zettel_select_ops(zettels, editor_select_mode); #return tag
-		elif inp == "n": new_tag = make_new_tag(None); return new_tag
 		elif inp == "e": new_tag = make_new_tag(tag[1]); return new_tag
 		elif inp == 'qm': main_menu()
 		print_tag_info(titles, listed_tag); print_tag_ops()
@@ -531,12 +541,14 @@ def zettel_search_ops(s):
 		elif inp == 'cw':  s['inp'] = ''; s['name'] = ''; 
 		elif inp == 'ct': s['inp'] = ''; s['tags_names'] = []; s['tags'] = []; 
 		elif inp == 't': s['inp'] = ''; s['tags'] = search_tags(editor_select_mode=True)
+		elif inp == 'n': make_new_zettel()
 		elif inp == 'q': s['stop'] = True
 		elif inp == 'qm': main_menu()
 	return s
 	
-def tag_search_ops(s):
-	print_search_tag_ops()
+def tag_search_ops(s, editor_select_mode):
+	if editor_select_mode: print_search_tag_edit()
+	else: print_search_tag_view()
 	inp = c_prompt('')
 	try: 
 		s['found'] = s['entries'][int(inp)-1]; return s
@@ -546,9 +558,10 @@ def tag_search_ops(s):
 			s['inp'] = ''; comment = '# Edit your search phrase below\n'
 			s['name'] = write_not_empty(comment+s['name'], '', allow_exit=True)
 		elif inp == "cw": s['name'] = ''; s['inp'] = ''; s['entries'] = read_taglist_all() #reset
-		elif inp == "n": s['found'] = make_new_tag(None)
 		elif inp == "q": s['stop'] = True
 		elif inp == 'qm': main_menu()
+		if editor_select_mode and inp == "n": 
+			s['found'] = make_new_tag(None)
 	return s
 
 def main_menu():
@@ -718,7 +731,7 @@ def search_tags(editor_select_mode): #must be passed in
 				print_list_or_return(s['entries']) #print over prompt
 				print_tag_search_stats(s['name'])
 				if editor_select_mode: print_selected(prev_found, 1)
-				s = tag_search_ops(s); 
+				s = tag_search_ops(s, editor_select_mode); 
 				if s['found']: s['exact'] = False; return s
 				if s['stop']: return s
 			print_list_or_return(s['entries']) #print
@@ -727,9 +740,20 @@ def search_tags(editor_select_mode): #must be passed in
 			s['inp'] = s_prompt("enter text (':' - options)")
 	#BEGIN
 	entries = []
-	s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'name_prev': '', 'entries': [], 'stop': False}
+	s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'name_prev': '', 
+		'entries': [], 'stop': False, 'total' : len(read_taglist_all())}
 	while True:
 		s = find_tags(s, entries, editor_select_mode)
+		if s['total'] == 1: #to prevent inf loop
+			result = tag_ops(s['entries'][0], editor_select_mode)
+			if editor_select_mode: 
+				while True: #prevent tag from being removed
+					print_only_one_tag_in_list(result)
+					inp = c_prompt('use it?')
+					if inp == 'p': entries.append(result); break
+					elif inp == 'n': entries.append(make_new_tag(None)); break
+					elif inp == 'qm': main_menu()
+			return entries
 		if s['stop']: break
 		if s['found'] and not s['exact']: 
 			result = tag_ops(s['found'], editor_select_mode)
@@ -1024,6 +1048,13 @@ def print_zettels_links_z_id(flag, titles, current_title):
 	elif flag == 'to': print(tw.fill('zettels linking to: {0} - {1}'.format(current_title, len(titles))))
 
 #SEARCHING / MAKING TAGS
+def print_detached_tag_rename():
+	cl_divider()
+	print(tw.fill('''
+attempted to rename a detached tag, the tag shouldn't have existed
+in the first place and will be deleted
+'''.strip()))
+
 def print_tag_search_stats(name):
 	print(tw_i.fill('phrase search: {0}'.format(name)))
 	
@@ -1087,7 +1118,7 @@ def print_main_ops():
 	print(tw_i.fill('(z) - find zettel to enter the database'))
 	print(tw_i.fill('(t) - browse tags in the database'))
 	print(tw_i.fill('(r) - review zettels for errors in links and content'))
-	print(tw_i.fill('(n) - start writing a new zettel'))
+	print(tw_i.fill('(n) - make a new zettel'))
 	print(tw_i.fill('(init) - make a new database (name in script header)'))
 	print(tw_i.fill('(temp) - generate a template .md zettel'))
 	print(tw_i.fill('(test) - generate a batch of test zettels'))
@@ -1116,6 +1147,7 @@ def print_search_zettel_ops():
 	print(tw_i.fill("(ew) - edit search phrase"))
 	print(tw_i.fill("(cw) - clear search phrase"))
 	print(tw_i.fill("(ct) - clear search tags"))
+	print(tw_i.fill('(n) - make a new zettel'))
 	print_qc('q')
 	print_qm()
 	
@@ -1130,9 +1162,7 @@ def print_zettel_ops():
 	print_qc('')
 	print(tw_i.fill('(ol) - outgoing links'))
 	print(tw_i.fill('(il) - incoming links'))
-	print(tw_i.fill('(nol) - print all n-depth outgoing links zettels'))
-	print(tw_i.fill('(nil) - print all n-depth incoming links zettels'))
-	print(tw_i.fill('(nbl) - print all n-depth both-ways links zettels'))
+	print(tw_i.fill('(x) - show zettel extra actions'))
 	print(tw_i.fill('(e) - show zettel edit options'))
 	print_qm()
 	
@@ -1148,9 +1178,15 @@ def print_zettel_edit_ops():
 	print(tw_i.fill('(l) - edit links'))
 	print(tw_i.fill('(t) - edit tags'))
 	print(tw_i.fill('(d) - delete zettel'))
+	
+def print_zettel_extra_ops():
+	divider()
+	print(tw_i.fill('(nol) - print all n-depth outgoing links zettels'))
+	print(tw_i.fill('(nil) - print all n-depth incoming links zettels'))
+	print(tw_i.fill('(nbl) - print all n-depth both-ways links zettels'))
 
 #TAG OPS MENUS
-def print_search_tag_ops():
+def print_search_tag_edit():
 	divider()
 	print(tw_i.fill("'number' - select entry"))
 	print(tw_i.fill("(ew) - edit search phrase"))
@@ -1159,13 +1195,28 @@ def print_search_tag_ops():
 	print_qc('q')
 	print_qm()
 	
+def print_search_tag_view():
+	divider()
+	print(tw_i.fill("'number' - select entry"))
+	print(tw_i.fill("(ew) - edit search phrase"))
+	print(tw_i.fill("(cw) - clear search phrase"))
+	print_qc('q')
+	print_qm()
+	
 def print_tag_ops():
 	divider()
 	print_qc('')
 	print(tw_i.fill('(i) - inspect zettels under tag'))
 	print(tw_i.fill('(e) - edit tag name (globally)'))
+	print_qm()
+	
+def print_only_one_tag_in_list(entry): 
+	cl_divider(); 
+	print(tw.fill('there is only one entry in the list: {0}'.format(entry[1])))
+	print(tw_i.fill('(p) - select it and proceed'))
 	print(tw_i.fill('(n) - make a new tag'))
 	print_qm()
+	
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ STANDARD PROMPTS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def c_prompt(prompt): 
@@ -1486,7 +1537,7 @@ def init_new_db():
 	comment = '# Enter the name of a new database below\n'
 	database_name = write_not_empty(comment, 'prompt', allow_exit=False)
 	new_db_path = os.path.join(os.getcwd(), database_name + '.db')
-	if os.path.isfile(new_db_path): print_db_exists(); return
+	if os.path.isfile(new_db_path): print_db_exists(); p(); return
 	dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
 	conn = None
 	try: conn = sqlite3.connect(new_db_path)
@@ -1506,7 +1557,7 @@ def init_new_db():
 				conn.commit()
 			except Error as e: print(e)
 			conn.close()
-			print_db_meta()
+			print_db_meta(new_db_path)
 			p()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ FILE & TEST OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
