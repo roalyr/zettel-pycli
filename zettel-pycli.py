@@ -719,8 +719,10 @@ def search_zettels(editor_select_mode):
 
 def search_tags(editor_select_mode): #must be passed in
 	def find_tags(s, prev_found, editor_select_mode): #must be passed in
+		s['entries'] = read_taglist_tags_like(s['name']) #init
+		s['found'] = print_list_or_return(s['entries'])
 		while True:
-			if s['inp'] != ':': 
+			if s['inp'] and s['inp'] != ':': 
 				s['name_prev'] = s['name'] #store prev. step
 				s['name'] += s['inp']
 				s['entries'] = read_taglist_tags_like(s['name'])
@@ -738,22 +740,13 @@ def search_tags(editor_select_mode): #must be passed in
 			print_tag_search_stats(s['name'])
 			if editor_select_mode: print_selected(prev_found, 1)
 			s['inp'] = s_prompt("enter text (':' - options)")
+		
 	#BEGIN
 	entries = []
 	s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'name_prev': '', 
-		'entries': [], 'stop': False, 'total' : len(read_taglist_all())}
+		'entries': [], 'stop': False}
 	while True:
 		s = find_tags(s, entries, editor_select_mode)
-		if s['total'] == 1: #to prevent inf loop
-			result = tag_ops(s['entries'][0], editor_select_mode)
-			if editor_select_mode: 
-				while True: #prevent tag from being removed
-					print_only_one_tag_in_list(result)
-					inp = c_prompt('use it?')
-					if inp == 'p': entries.append(result); break
-					elif inp == 'n': entries.append(make_new_tag(None)); break
-					elif inp == 'qm': main_menu()
-			return entries
 		if s['stop']: break
 		if s['found'] and not s['exact']: 
 			result = tag_ops(s['found'], editor_select_mode)
@@ -1351,7 +1344,7 @@ def delete_from_db(query, exec_line, db_path):
 					c.execute(exec_line, (query,))
 				else: 
 					c.execute(exec_line)
-			except Error as e: print(e)
+			except Error as e: print(e); p(); main_menu()
 			conn.commit(); conn.close();
 	
 def query_db(query, exec_line, db_path):
@@ -1367,7 +1360,7 @@ def query_db(query, exec_line, db_path):
 				else: 
 					c.execute(exec_line)
 				found = c.fetchall()
-			except Error as e: print(e)
+			except Error as e: print(e); p(); main_menu()
 			conn.close(); return found
 			
 def query_tags(tag, db_path): #for AND condition filtering
@@ -1383,7 +1376,7 @@ def query_tags(tag, db_path): #for AND condition filtering
 				else: 
 					return found
 				found = c.fetchall()
-			except Error as e: print(e)
+			except Error as e: print(e); p(); main_menu()
 			conn.close(); return found
 			
 def add_to_db(entry, exec_line, db_path):
@@ -1403,7 +1396,7 @@ def add_to_db(entry, exec_line, db_path):
 					print('Attempted to write', len(entry), 'fields, which is not supported')
 					print('The SQLite command is:', exec_line)
 					quit()
-			except Error as e: print(e)
+			except Error as e: print(e); p(); main_menu()
 			conn.commit()
 			id = c.lastrowid
 			conn.close();
@@ -1425,7 +1418,7 @@ def incr_add_to_db(entry_list, exec_line, db_path):
 						print('Attempted to write', len(entry), 'fields, which is not supported')
 						print('The SQLite command is:', exec_line)
 						quit()
-			except Error as e: print(e)
+			except Error as e: print(e); p(); main_menu()
 			conn.commit()
 			id = c.lastrowid
 			conn.close();
@@ -1528,7 +1521,7 @@ def import_to_db():
 				print_db_meta(db_name_imported)
 				if invalid_links:
 					print_invalid_links(invalid_links)
-			except Error as e: print(e)
+			except Error as e: print(e); p(); main_menu()
 			conn.close()
 			p()
 			
@@ -1555,7 +1548,7 @@ def init_new_db():
 				#write meta
 				c.execute(insert_meta, (database_name, dt_str, 0, 0, 0, 0, 0, 0,))
 				conn.commit()
-			except Error as e: print(e)
+			except Error as e: print(e); p(); main_menu()
 			conn.close()
 			print_db_meta(new_db_path)
 			p()
