@@ -293,7 +293,7 @@ def rescan_meta(): #only when checking
 		if not zettel[3]: 
 			tot_no_bodies += 1
 			write_no_bodies(z_id)
-		if not read_links_z_id_from(z_id): 
+		if not read_links_z_id_from(z_id) and not read_links_z_id_to(z_id): 
 			tot_no_links += 1
 			write_no_links(z_id)
 	for link in links:
@@ -369,7 +369,7 @@ def make_new_zettel():
 	comment = '# Enter the zettel text body below\n'
 	z_body = write_not_empty(comment, flag=None, allow_exit=False)
 	print_zettels_select(); p()
-	zettels_linked = zettel_picker()
+	zettels_linked = zettel_picker(None)
 	print_tags_select(); p()
 	tags = tag_picker()
 	#generate filename for export feature
@@ -402,9 +402,9 @@ def make_new_tag(old_tag):
 	return (t_id, new_tag)
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ EDITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def zettel_picker(): #add ops to edit the list properly
+def zettel_picker(current_z_id): #add ops to edit the list properly
 	zettels = [] 
-	try: zettels += search_zettels(editor_select_mode=True)
+	try: zettels += search_zettels(current_z_id, editor_select_mode=True)
 	except TypeError: pass
 	return zettels
 	
@@ -427,7 +427,7 @@ def edit_main_z_body(z_id):
 	rewrite_main_z_body(z_id, new_body)
 	
 def edit_links_z_id_from(z_id):
-	zettels = zettel_picker()
+	zettels = zettel_picker(z_id)
 	rewrite_links_from(z_id, zettels)
 	
 def edit_tags_z_id(z_id):
@@ -564,7 +564,7 @@ def main_menu():
 		inp = c_prompt('MENU')
 		if inp == "i": print_db_meta(current_db_path); p()
 		elif inp == "n": make_new_zettel();
-		elif inp == "z": search_zettels(editor_select_mode=False); 
+		elif inp == "z": search_zettels(None, editor_select_mode=False); 
 		elif inp == "t": search_tags(editor_select_mode=False); 
 		elif inp == "r": review();
 		elif inp == "init": init_new_db();
@@ -633,7 +633,7 @@ def follow_links_z_id(flag, z_id):
 		print_zettels_links_z_id(flag, titles, z_title)
 		if zettel_select_ops(zettels, editor_select_mode=False): return
 	
-def search_zettels(editor_select_mode):
+def search_zettels(current_z_id, editor_select_mode):
 	def find_zettel(s, prev_found, editor_select_mode):
 		s = zettel_filter_lists(s) #init
 		while True:
@@ -699,15 +699,19 @@ def search_zettels(editor_select_mode):
 		if s['stop']: break #must be first
 		if s['found'] and not s['exact']: 
 			result = zettel_ops(s['found'], editor_select_mode) #may be edited
-			if editor_select_mode: 
+			if editor_select_mode and current_z_id != result[0]: 
 				entries.append(result)
 				entries = list(dict.fromkeys(entries)) #dedup
+			elif editor_select_mode and current_z_id == result[0]:
+				print_picking_same_zettel(); p()
 			s['found'] = None; s['inp'] = '' #keep searching if not exact found
 		if s['exact']: 
 			result = zettel_ops(s['found'], editor_select_mode) #may be edited
-			if editor_select_mode: 
+			if editor_select_mode and current_z_id != result[0]: 
 				entries.append(result)
 				entries = list(dict.fromkeys(entries)) #dedup
+			elif editor_select_mode and current_z_id == result[0]:
+				print_picking_same_zettel(); p()
 			s['found'] = None; s['inp'] = ''; s['name'] = s['name_prev'] #roll back to resume narrowed search
 	return entries
 
@@ -809,11 +813,20 @@ there are zettels linking to themselves listed above
 	
 def print_invalid_links_warn():
 	print(''); print(tw.fill('''
-there are corrupt links in your zettels
-this error should occur after importing .md zettels
-which is why you shall fix the links in your .md files
-and then re-import them to database again
-optionally, you may ignore this warning
+there are corrupt links in your zettels this error should occur
+after importing .md zettels which is why you shall fix the links
+in your .md files and then re-import them to database again
+optionally, you may ignore this warning and those links will not
+be included to the database
+'''.strip()))
+
+def print_dupe_links_warn():
+	print(''); print(tw.fill('''
+there are duplicate links in your zettels this error should occur
+after importing .md zettels which is why you shall fix the links
+in your .md files and then re-import them to database again
+optionally, you may ignore this warning and those links will not
+be included to the database
 '''.strip()))
 	
 def print_check_passed(): 
@@ -823,7 +836,6 @@ all good, no corrupt links or unlinked zettels
 '''.strip()))
 
 def print_invalid_links(entries):
-	if not entries: return False
 	same_zettel = False; id_prev = None; num = 1
 	divider()
 	for entry in entries:
@@ -842,7 +854,26 @@ def print_invalid_links(entries):
 			num += 1
 		id_prev = z_id
 	print_invalid_links_warn()
-	return True
+	
+def print_dupe_links(entries):
+	same_zettel = False; id_prev = None; num = 1
+	divider()
+	for entry in entries:
+		z_id = entry[0]; z_title = entry[1]; z_path = entry[2]; 
+		invalid_link_name = entry[3]; link_desc = entry[4]
+		if z_id == id_prev: same_zettel = True
+		if same_zettel:
+			print(tw_i.fill('   └─{0} ░ {1}'.format(invalid_link_name, link_desc)))
+			same_zettel = False
+		else:
+			print()
+			print(tw_i.fill('{0}. id: {1}, {2}'.format(str(num), str(z_id), z_title)))
+			print(tw_i.fill('   file: {0}'.format(z_path)))
+			print(tw_i.fill('   duplicate links:'))
+			print(tw_i.fill('   └─{0} ░ {1}'.format(invalid_link_name, link_desc)))
+			num += 1
+		id_prev = z_id
+	print_dupe_links_warn()
 		
 def print_zettels_warnings(query, exec_str): #for other kinds of errors
 	entries = query_db(query, exec_str, current_db_path); num = 1
@@ -1062,6 +1093,12 @@ def print_zettels_links_z_id(flag, titles, current_title):
 	print()
 	if flag == 'from': print(tw.fill('zettels linked by: {0} - {1}'.format(current_title, len(titles))))
 	elif flag == 'to': print(tw.fill('zettels linking to: {0} - {1}'.format(current_title, len(titles))))
+
+def print_picking_same_zettel():
+	divider()
+	print(tw.fill('''
+selected the same zettel you are linking from, it will be omitted
+'''.strip()))
 
 #SEARCHING / MAKING TAGS
 def print_detached_tag_rename():
@@ -1472,14 +1509,13 @@ def import_to_db():
 				c.execute(create_tags_table); c.execute(create_no_bodies_table)
 				c.execute(create_no_titles_table); c.execute(create_taglist_table);
 				#populate tables
-				links = []; invalid_links = []; tot_links = 0; tot_tags = 0; tot_invalid_links = 0
-				tot_no_links = 0; tot_no_bodies = 0; tot_no_titles = 0; tot_self_links = 0
+				links = []; invalid_links = []; dupe_links = []; written_links = []
 				#main table
 				for root, dirs, files in os.walk(path):
 					for name in files:
 						if name == zettel_template_name: continue #skip it
 						full_path = os.path.join(root, name)
-						parsed = parse_zettel_metadata(full_path)
+						parsed = parse_zettel_from_file(full_path)
 						z_path = name
 						z_title = parsed['title']
 						z_body = parsed['body']
@@ -1493,60 +1529,38 @@ def import_to_db():
 						for tag in tags:
 							c.execute(insert_tags, (current_zettel_id, tag,))
 							c.execute(insert_taglist, (tag,))
-						#store errors
-						if z_body == '':
-							c.execute(insert_no_bodies, (current_zettel_id,))
-							tot_no_bodies += 1
-						if z_title == '':
-							c.execute(insert_no_titles, (current_zettel_id,))
-							tot_no_titles += 1
 				#links must be done only once main tabe is populated
 				for root, dirs, files in os.walk(path):
 					for name in files:
 						if name == zettel_template_name: continue #skip it
 						full_path = os.path.join(root, name)
-						parsed = parse_zettel_metadata(full_path)
+						parsed = parse_zettel_from_file(full_path)
 						z_path = name
-						z_title = parsed['title']
-						links = parsed['links']
-						tot_links += len(links)
+						z_title = parsed['title']; links = parsed['links']
 						#get the current zettel id
 						c.execute(select_main_z_path, (z_path,))
 						current_zettel_id = c.fetchall()[0][0]
 						#see if links point out to existing nodes
-						for link_path in links:
-							#destination zettel
+						for link in links:
+							link_path = link[1]; link_desc = link[0]
 							c.execute(select_main_z_path, (link_path,))
 							found_zettel = c.fetchall()
 							if found_zettel:
 								valid_zettel_id = found_zettel[0][0]
-								#make sure it doesn't point to itself
-								if valid_zettel_id != current_zettel_id:
-									c.execute(insert_links, (current_zettel_id, valid_zettel_id,))
-								else:
-									c.execute(insert_self_links, (current_zettel_id,))
-									tot_self_links += 1
-							else:
-								invalid_links.append((current_zettel_id, z_title, z_path, link_path,))
-								tot_invalid_links += 1
-						if links == []:
-							c.execute(insert_no_links, (current_zettel_id,))
-							tot_no_links += 1
-				tot_zettels = len(files)
-				#write meta
-				c.execute(insert_meta, (db_name_imported, dt_str, tot_zettels, tot_links, tot_no_links, 
-					tot_self_links, tot_no_bodies, tot_no_titles,))
-				#write all
+								if valid_zettel_id != current_zettel_id: #make sure it doesn't point to itself
+									if not (current_zettel_id, valid_zettel_id,) in written_links: #no dupes allowed
+										c.execute(insert_links, (current_zettel_id, valid_zettel_id, link_desc));
+										written_links.append((current_zettel_id, valid_zettel_id,))
+									else: dupe_links.append((current_zettel_id, z_title, z_path, link_path, link_desc))
+							else: invalid_links.append((current_zettel_id, z_title, z_path, link_path,))
 				conn.commit()
 				time_end = time.time()
 				t = time_end - time_start
-				print_importing_succeeded(database_name, t); p()
-				print_db_meta(db_name_imported)
-				if invalid_links:
-					print_invalid_links(invalid_links)
+				print_importing_succeeded(database_name, t)
+				if invalid_links: print_invalid_links(invalid_links); p()
+				if dupe_links: print_dupe_links(dupe_links); p()
 			except Error as e: print(e); p(); main_menu()
-			conn.close()
-			p()
+			conn.close();
 			
 def init_new_db():
 	print_init_new_db(); p()
@@ -1624,11 +1638,9 @@ dapibus, et volutpat erat consequat. '''
 		lorem_raw.append(word.strip())
 	
 	print_test_warn()
-	try:
-		inp_num = write_num_not_empty('int', 'how many zettels to make?')
-		inp_links = write_num_not_empty('int', 'how many links per zettel')
-		inp_corr = write_num_not_empty('float', 'amount of correct zettels (0.0..1.0)')
-	except: print_num_wrong_input(); return False #failed
+	inp_num = write_num_not_empty('int', 'how many zettels to make?')
+	inp_links = write_num_not_empty('int', 'how many links per zettel')
+	inp_corr = write_num_not_empty('float', 'amount of correct zettels (0.0..1.0)')
 	#perfect zettels
 	for i in range(inp_num):
 		lorem_full = ' '.join(random.sample(lorem_raw, len(lorem_raw)))
@@ -1647,6 +1659,7 @@ dapibus, et volutpat erat consequat. '''
 		elif frnd < 0.8 and frnd >= 0.71: tags = 'performance, python'
 		elif frnd < 0.9 and frnd >= 0.81: tags = 'performance, tags'
 		elif frnd < 1.0 and frnd >= 0.91: tags = 'performance, test'
+		else: tags = ''
 		
 		if frnd <= inp_corr:
 			links = ''
@@ -1655,35 +1668,35 @@ dapibus, et volutpat erat consequat. '''
 					rnd = random.randrange(inp_num)
 					if rnd == i: rnd += 1
 					if rnd == inp_num: rnd -= 2
-					links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
+					links += '['+title+' links to: ' +str(rnd)+'.md because...]('+str(rnd)+'.md)  \n'
 			except ValueError: pass
-			zettel_template_test = marker_title + '\n' + title \
-			+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
-			+ tags + '\n\n' + marker_links + '\n' + links
+			zettel_template_test = marker_title + '  \n' + title \
+			+ '  \n\n' + marker_body + '  \n' + lorem + '  \n\n' + marker_tags + '  \n' \
+			+ tags + '  \n\n' + marker_links + '  \n' + links
 		else: #bad zettels
 			links = ''
 			try: #make some wrong links
-				if frnd3 < 0.25:
+				if frnd2 < 0.25:
 					for j in range(inp_links):
 						rnd = random.randrange(inp_num)
-						links += '[Test link '+str(j)+']('+str(rnd)+'.md)\n'
-				elif frnd2 < 0.5 and frnd >= 0.25: links += '[some](bronek links)'
-				elif frnd < 0.75 and frnd >= 0.5: links += '[Self link '+str(j)+']('+str(i+1)+'.md)\n'
+						links += '['+title+' links to: ' +str(rnd)+'.md because...]('+str(rnd)+'.md)  \n'
+				elif frnd2 < 0.5 and frnd2 >= 0.25: links += '[some](broken link)'
+				elif frnd2 < 0.75 and frnd2 >= 0.5: links += '[Self link '+str(i+1)+']('+str(i+1)+'.md)\n'
 				else: pass
 			except ValueError: pass
 			
-			if frnd < 0.33: #make some wrong zettels
-				zettel_template_test = marker_title + '\n'\
-				+ '\n\n' + marker_body + '\n' + lorem + '\n\n' + marker_tags + '\n' \
-				+ tags + '\n\n' + marker_links + '\n' + links
-			elif frnd3 < 0.66 and frnd >= 0.33:
-				zettel_template_test = marker_title + '\n' + title + str(i+1) \
-				+ '\n\n' + marker_body + '\n\n' + marker_tags + '\n' \
-				+ tags + '\n\n' + marker_links + '\n' + links
-			elif frnd2 <= 1.0 and frnd >= 0.66:
-				zettel_template_test = marker_title + '\n'\
-				+ '\n\n' + marker_body + '\n' + marker_tags + '\n' \
-				+ tags + '\n\n' + marker_links + '\n' + links
+			if frnd3 < 0.33: #make some wrong zettels
+				zettel_template_test = marker_title + '  \n' \
+				+ '  \n\n' + marker_body + '  \n' + lorem + '  \n\n' + marker_tags + '  \n' \
+				+ tags + '  \n\n' + marker_links + '  \n' + links
+			elif frnd3 < 0.66 and frnd3 >= 0.33:
+				zettel_template_test = marker_title + '  \n' + title \
+				+ '  \n\n' + marker_body + '  \n\n' + marker_tags + '  \n' \
+				+ tags + '  \n\n' + marker_links + '  \n' + links
+			elif frnd3 <= 1.0 and frnd3 >= 0.66:
+				zettel_template_test = marker_title + '  \n' \
+				+ '  \n\n' + marker_body + '  \n\n' + marker_tags + '  \n' \
+				+ tags + '  \n\n' + marker_links + '  \n' + links
 		if not os.path.exists(path): os.mkdir(path)
 		f = open(path + "/" + str(i) + '.md', "w")
 		f.write(zettel_template_test); f.close()
@@ -1691,7 +1704,7 @@ dapibus, et volutpat erat consequat. '''
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ PARSING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def find_md_links(md):
-	INLINE_LINK_RE = re.compile(r'\(([^)]+)\)')
+	INLINE_LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
 	links = list(INLINE_LINK_RE.findall(md))
 	return links
 
@@ -1707,7 +1720,7 @@ def parse_off_comments(text):
 		else: out += line
 	return out
 	
-def parse_zettel_metadata(z_path):
+def parse_zettel_from_file(z_path):
 	data = {'title' : '', 'body' : '', 'tags' : [], 'links' : [], }
 	f = open(z_path, 'r')
 	#a switch flag to read links in tge end of the file
