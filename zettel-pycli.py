@@ -44,12 +44,6 @@ from sqlite3 import Error
 path = os.path.join(os.getcwd(), database_name)
 current_db_path = os.path.join(os.getcwd(), database_name + '.db')
 zettel_template_name = "_template.md"
-if text_width < 30: print('minimal text width value is 30'); text_width = 30
-indent = ' '*7
-tw = textwrap.TextWrapper(text_width)
-tw_w = textwrap.TextWrapper(text_width-1, initial_indent=' ', subsequent_indent=' ', replace_whitespace=False)
-tw_i = textwrap.TextWrapper(text_width, subsequent_indent=indent)
-tw_ii = textwrap.TextWrapper(text_width-len(indent), initial_indent=indent, subsequent_indent=indent)
 
 marker_title = '[TITLE]'
 marker_tags = '[TAGS]'
@@ -476,9 +470,9 @@ def zettel_ops(zettel, editor_select_mode):
 	def zettel_extra_ops(zettel, z_id):
 		print_whole_zettel(zettel); print_zettel_extra_ops()
 		inp = c_prompt('')
-		if inp == 'nol': follow_n_depth_links_z_id('outgoing', z_id)
-		elif inp == 'nil': follow_n_depth_links_z_id('incoming', z_id)
-		elif inp == 'nbl': follow_n_depth_links_z_id('both', z_id)
+		if inp == 'nlt': follow_n_depth_links_z_id('outgoing', z_id)
+		elif inp == 'nlb': follow_n_depth_links_z_id('incoming', z_id)
+		elif inp == 'nal': follow_n_depth_links_z_id('both', z_id)
 	#BEGIN
 	z_id = zettel[0]; z_title = zettel[1]; z_body = zettel[3]
 	if not editor_select_mode: print_whole_zettel(zettel); print_zettel_ops() #init
@@ -487,8 +481,8 @@ def zettel_ops(zettel, editor_select_mode):
 		inp = c_prompt('')
 		if not editor_select_mode:
 			if inp == '': return zettel
-			elif inp == 'ol': follow_links_z_id('from', z_id)
-			elif inp == 'il': follow_links_z_id('to', z_id)
+			elif inp == 'lt': follow_links_z_id('from', z_id)
+			elif inp == 'lb': follow_links_z_id('to', z_id)
 			elif inp == 'x': zettel_extra_ops(zettel, z_id)
 			elif inp == 'e': zettel_edit_ops(zettel, z_id)
 			elif inp == 'qm': main_menu()
@@ -762,6 +756,27 @@ def search_tags(editor_select_mode): #must be passed in
 			s['found'] = None; s['inp'] = ''; s['name'] = s['name_prev'] #roll back to resume narrowed search
 	return entries
 
+#▒▒▒▒▒▒▒▒▒▒▒▒ FORMATTING ▒▒▒▒▒▒▒▒▒▒▒▒▒
+if text_width < 30: print('minimal text width value is 30'); text_width = 30
+in_tags = ' tags:   '
+in_links_out = ' └ to:   '
+in_links_in = ' └ by:   '
+indent = '         '; ph = '...'
+right_indent = 4; ml = 3
+tw_tags = textwrap.TextWrapper(text_width-right_indent, 
+	initial_indent=in_tags, subsequent_indent=indent,
+	placeholder=ph, max_lines=ml)
+tw_links_out = textwrap.TextWrapper(text_width-right_indent, 
+	initial_indent=in_links_out, subsequent_indent=indent,
+	placeholder=ph, max_lines=ml)
+tw_links_in = textwrap.TextWrapper(text_width-right_indent, 
+	initial_indent=in_links_in, subsequent_indent=indent,
+	placeholder=ph, max_lines=ml)
+tw = textwrap.TextWrapper(text_width)
+tw_w = textwrap.TextWrapper(text_width-1, initial_indent=' ', subsequent_indent=' ', replace_whitespace=False)
+tw_i = textwrap.TextWrapper(text_width, subsequent_indent=indent)
+
+
 #▒▒▒▒▒▒▒▒▒▒▒▒ PRINT OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 #DB ERROR CHECK
 def print_no_db_warn():
@@ -982,17 +997,25 @@ def print_single_zettel(zettel):
 		body ='<no text body / corrupted text body>'
 	tags = read_tags_z_id(zettel[0]) #tags
 	tags_str = str_from_list(zettel_sort_tags, tags, 2, '', ' ░ ', '').strip()
-	links = read_links_z_id_from(zettel[0]) #lnks
-	linked_zettels = []
-	for link in links:
+	links_out = read_links_z_id_from(zettel[0]) #lnks
+	links_in = read_links_z_id_to(zettel[0]) 
+	linked_zettels_out = []; linked_zettels_in = []
+	for link in links_out:
 		linked_zettel = read_main_id(link[2])
-		linked_zettels.append(linked_zettel)
-	links_str = str_from_list(zettel_sort_links, linked_zettels, 1, '', ' ░ ', '').strip()
-	print_header('░', title), print() #printing
+		linked_zettels_out.append(linked_zettel)
+	for link in links_in:
+		linked_zettel = read_main_id(link[1])
+		linked_zettels_in.append(linked_zettel)
+	links_out_str = str_from_list(zettel_sort_links, linked_zettels_out, 1, '', ' ░ ', '').strip()
+	links_in_str = str_from_list(zettel_sort_links, linked_zettels_in, 1, '', ' ░ ', '').strip()
+	#printing
+	print_header('░', title), print() 
 	for line in body.splitlines():
 		print(tw_w.fill('{0}'.format(line)))
-	print(); print('tags:'); print(tw_ii.fill(tags_str))
-	print('links:'); print(tw_ii.fill(links_str)); print()
+	print(); print(tw_tags.fill(tags_str)); print()
+	if links_out or links_in: print(' linked')
+	if links_out: print(tw_links_out.fill(links_out_str)); print()
+	if links_in: print(tw_links_in.fill(links_in_str)); print()
 	
 def print_header(sym, name):
 	if len(name) < text_width: 
@@ -1153,10 +1176,10 @@ def print_select_zettel_ops():
 def print_zettel_ops():
 	divider()
 	print_qc('')
-	print(tw_i.fill('(ol) - outgoing links'))
-	print(tw_i.fill('(il) - incoming links'))
-	print(tw_i.fill('(x) - show zettel extra actions'))
-	print(tw_i.fill('(e) - show zettel edit options'))
+	print(tw_i.fill('(lt) - linked to →'))
+	print(tw_i.fill('(lb) - linked by ←'))
+	print(tw_i.fill('(x) - zettel extra actions'))
+	print(tw_i.fill('(e) - zettel edit options'))
 	print_qm()
 	
 def print_zettel_ops_lim():
@@ -1168,15 +1191,15 @@ def print_zettel_edit_ops():
 	divider()
 	print(tw_i.fill('(n) - edit title (name)'))
 	print(tw_i.fill('(b) - edit text body'))
-	print(tw_i.fill('(l) - edit links'))
+	print(tw_i.fill('(l) - edit outgoing links'))
 	print(tw_i.fill('(t) - edit tags'))
 	print(tw_i.fill('(d) - delete zettel'))
 	
 def print_zettel_extra_ops():
 	divider()
-	print(tw_i.fill('(nol) - print all n-depth outgoing links zettels'))
-	print(tw_i.fill('(nil) - print all n-depth incoming links zettels'))
-	print(tw_i.fill('(nbl) - print all n-depth both-ways links zettels'))
+	print(tw_i.fill("(nlt) - follow n-times 'linked to' → →"))
+	print(tw_i.fill("(nlb) - follow n-times 'linked by' ← ←"))
+	print(tw_i.fill('(nal) - follow n-times all linked  ← →'))
 
 #TAG OPS MENUS
 def print_search_tag_edit():
