@@ -510,7 +510,7 @@ def tag_ops(tag, editor_select_mode):
 		elif inp == "e": new_tag = make_new_tag(tag[1]); return new_tag
 		elif inp == 'qm': main_menu()
 		print_tag_info(titles, listed_tag); print_tag_ops()
-	
+
 def zettel_select_ops(zettels, editor_select_mode): #when zettel list provided
 	print_select_zettel_ops()
 	zettel = None
@@ -1543,8 +1543,9 @@ def import_to_db():
 						current_zettel_id = c.fetchall()[0][0]
 						#store metadata
 						for tag in tags:
-							c.execute(insert_tags, (current_zettel_id, tag,))
-							c.execute(insert_taglist, (tag,))
+							if tag.strip(): #prevent empty space
+								c.execute(insert_tags, (current_zettel_id, tag.strip(),))
+								c.execute(insert_taglist, (tag.strip(),))
 				#links must be done only once main tabe is populated
 				for root, dirs, files in os.walk(path):
 					for name in files:
