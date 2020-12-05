@@ -691,7 +691,12 @@ def search_zettels(current_z_id, editor_select_mode):
 			s['entries'] = list(set(s['entries']).intersection(s['entries_tag'] ))
 		return s
 	#BEGIN
-	entries = []
+	entries = []; links_ids_to_current = []
+	if current_z_id: #prevent cyclical links
+		links_to_current = read_links_z_id_to(current_z_id)
+		if links_to_current:
+			for link in links_to_current:
+				links_ids_to_current.append(link[1])
 	s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'entries_tag': [], 'name_prev': '',
 		'tags_names': [], 'entries': [], 'entries_title': [], 'entries_body': [], 'tags': [], 'stop': False}
 	while True:
@@ -699,19 +704,25 @@ def search_zettels(current_z_id, editor_select_mode):
 		if s['stop']: break #must be first
 		if s['found'] and not s['exact']: 
 			result = zettel_ops(s['found'], editor_select_mode) #may be edited
-			if editor_select_mode and current_z_id != result[0]: 
+			if editor_select_mode and current_z_id != result[0] and \
+				not result[0] in links_ids_to_current:
 				entries.append(result)
 				entries = list(dict.fromkeys(entries)) #dedup
 			elif editor_select_mode and current_z_id == result[0]:
 				print_picking_same_zettel(); p()
+			elif editor_select_mode and result[0] in links_ids_to_current:
+				print_picking_same_as_linking_zettel(); p()
 			s['found'] = None; s['inp'] = '' #keep searching if not exact found
 		if s['exact']: 
 			result = zettel_ops(s['found'], editor_select_mode) #may be edited
-			if editor_select_mode and current_z_id != result[0]: 
+			if editor_select_mode and current_z_id != result[0] and \
+				not result[0] in links_ids_to_current:
 				entries.append(result)
 				entries = list(dict.fromkeys(entries)) #dedup
 			elif editor_select_mode and current_z_id == result[0]:
 				print_picking_same_zettel(); p()
+			elif editor_select_mode and result[0] in links_ids_to_current:
+				print_picking_same_as_linking_zettel(); p()
 			s['found'] = None; s['inp'] = ''; s['name'] = s['name_prev'] #roll back to resume narrowed search
 	return entries
 
@@ -738,7 +749,6 @@ def search_tags(editor_select_mode): #must be passed in
 			print_tag_search_stats(s['name'])
 			if editor_select_mode: print_selected(prev_found, 1)
 			s['inp'] = s_prompt("enter text (':' - options)")
-		
 	#BEGIN
 	entries = []
 	s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'name_prev': '', 
@@ -1098,6 +1108,12 @@ def print_picking_same_zettel():
 	divider()
 	print(tw.fill('''
 selected the same zettel you are linking from, it will be omitted
+'''.strip()))
+
+def print_picking_same_as_linking_zettel():
+	divider()
+	print(tw.fill('''
+selected a zettel that already links to current, it will be omitted
 '''.strip()))
 
 #SEARCHING / MAKING TAGS
