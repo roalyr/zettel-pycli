@@ -371,7 +371,7 @@ def make_new_zettel():
 	print_zettels_select(); p()
 	zettels_linked = zettel_picker(None)
 	print_tags_select(); p()
-	tags = tag_picker()
+	tags = tag_picker(None)
 	#generate filename for export feature
 	path_length = 30
 	z_path = z_title
@@ -408,9 +408,9 @@ def zettel_picker(current_z_id): #add ops to edit the list properly
 	except TypeError: pass
 	return zettels
 	
-def tag_picker(): #add ops to edit the list properly
+def tag_picker(tags_init): #add ops to edit the list properly
 	tags = [] 
-	try: tags += search_tags(editor_select_mode=True)
+	try: tags += search_tags(tags_init, editor_select_mode=True)
 	except TypeError: pass
 	return tags
 	
@@ -521,9 +521,9 @@ def tag_edit_ops(z_id):
 			init_tags += read_taglist_tags_like(tag[2])
 		except IndexError: pass
 	inp = c_prompt('')
-	if inp == 'n': tags = tag_picker()
+	if inp == 'n': tags = tag_picker(None)
 	elif inp == 'r': tags = tag_remover(init_tags)
-	elif inp == 'a': tags = tag_adder(init_tags)
+	elif inp == 'a': tags = tag_picker(init_tags)
 	elif inp == 'qm': main_menu()
 	else: tags = init_tags
 	#print(init_tags, tags); p()
@@ -555,7 +555,7 @@ def zettel_search_ops(s):
 			s['name'] = write_not_empty(comment+s['name'], '', allow_exit=True)
 		elif inp == 'cw':  s['inp'] = ''; s['name'] = ''; 
 		elif inp == 'ct': s['inp'] = ''; s['tags_names'] = []; s['tags'] = []; 
-		elif inp == 't': s['inp'] = ''; s['tags'] = search_tags(editor_select_mode=True)
+		elif inp == 't': s['inp'] = ''; s['tags'] = search_tags(None, editor_select_mode=True)
 		elif inp == 'n': make_new_zettel()
 		elif inp == 'q': s['stop'] = True
 		elif inp == 'qm': main_menu()
@@ -586,7 +586,7 @@ def main_menu():
 		if inp == "i": print_db_meta(current_db_path); p()
 		elif inp == "n": make_new_zettel();
 		elif inp == "z": search_zettels(None, editor_select_mode=False); 
-		elif inp == "t": search_tags(editor_select_mode=False); 
+		elif inp == "t": search_tags(None, editor_select_mode=False); 
 		elif inp == "r": review();
 		elif inp == "init": init_new_db();
 		elif inp == "temp": make_template();
@@ -747,7 +747,7 @@ def search_zettels(current_z_id, editor_select_mode):
 			s['found'] = None; s['inp'] = ''; s['name'] = s['name_prev'] #roll back to resume narrowed search
 	return entries
 
-def search_tags(editor_select_mode): #must be passed in
+def search_tags(tags_init, editor_select_mode): #must be passed in
 	def find_tags(s, prev_found, editor_select_mode): #must be passed in
 		s['entries'] = read_taglist_tags_like(s['name']) #init
 		s['found'] = print_list_or_return(s['entries'])
@@ -771,7 +771,8 @@ def search_tags(editor_select_mode): #must be passed in
 			if editor_select_mode: print_selected(prev_found, 1)
 			s['inp'] = s_prompt("enter text (':' - options)")
 	#BEGIN
-	entries = []
+	if not tags_init: entries = []
+	else: entries = tags_init
 	s = {'found': None, 'exact': False, 'name': '', 'inp': '', 'name_prev': '', 
 		'entries': [], 'stop': False}
 	while True:
