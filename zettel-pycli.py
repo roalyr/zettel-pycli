@@ -431,7 +431,7 @@ def edit_links_z_id_from(z_id):
 	rewrite_links_from(z_id, zettels)
 	
 def edit_tags_z_id(z_id):
-	tags = tag_picker()
+	tags = tag_edit_ops(z_id)
 	rewrite_zettel_tags(z_id, tags)
 
 def delete_zettel(z_id):
@@ -464,7 +464,9 @@ def zettel_ops(zettel, editor_select_mode):
 		if inp == 'n': edit_main_z_title(z_id)
 		elif inp == 'b': edit_main_z_body(z_id)
 		elif inp == 'l': edit_links_z_id_from(z_id)
-		elif inp == 't': edit_tags_z_id(z_id)
+		elif inp == 't': 
+			print_whole_zettel(zettel); print_tag_edit_ops()
+			edit_tags_z_id(z_id)
 		elif inp == 'd': delete_zettel(z_id); main_menu()
 	###
 	def zettel_extra_ops(zettel, z_id):
@@ -510,6 +512,25 @@ def tag_ops(tag, editor_select_mode):
 		elif inp == "e": new_tag = make_new_tag(tag[1]); return new_tag
 		elif inp == 'qm': main_menu()
 		print_tag_info(titles, listed_tag); print_tag_ops()
+
+def tag_edit_ops(z_id):
+	init_tags = []
+	zettel_tags = read_tags_z_id(z_id)
+	for tag in zettel_tags:
+		try: 
+			init_tags += read_taglist_tags_like(tag[2])
+		except IndexError: pass
+	inp = c_prompt('')
+	if inp == 'n': tags = tag_picker()
+	elif inp == 'r': tags = tag_remover(init_tags)
+	elif inp == 'a': tags = tag_adder(init_tags)
+	elif inp == 'qm': main_menu()
+	else: tags = init_tags
+	#print(init_tags, tags); p()
+	return tags
+	
+
+#zettel picker ops
 
 def zettel_select_ops(zettels, editor_select_mode): #when zettel list provided
 	print_select_zettel_ops()
@@ -1286,6 +1307,12 @@ def print_only_one_tag_in_list(entry):
 	print(tw_i.fill('(n) - make a new tag'))
 	print_qm()
 	
+def print_tag_edit_ops():
+	divider(); 
+	print(tw_i.fill('(n) - pick a new set of tags'))
+	print(tw_i.fill('(a) - add a tag'))
+	print(tw_i.fill('(r) - remove a tag'))
+	print_qm()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ STANDARD PROMPTS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def c_prompt(prompt): 
