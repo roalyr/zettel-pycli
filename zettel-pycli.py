@@ -142,6 +142,7 @@ select_tags_tag = "SELECT * FROM tags WHERE tag = ? "
 select_links_all = "SELECT * FROM links"
 select_links_z_id_from = "SELECT * FROM links WHERE z_id_from = ?"
 select_links_z_id_to = "SELECT * FROM links WHERE z_id_to = ?"
+select_links_z_ids = "SELECT * FROM links WHERE z_id_from = ? AND z_id_to = ?"
 
 #UPDATE
 update_main_z_body = 'UPDATE main SET z_body = ? WHERE id = ?'
@@ -189,36 +190,38 @@ def write_taglist_tag(tags):
 	t_id = incr_add_to_db(tags, insert_taglist, current_db_path)
 	return t_id #regurns only last id
 	
-def write_links_from(z_id, zettels):
-	entry_list = []
+def write_links_from(z_id, zettels, descriptions):
+	entry_list = []; i = 0
 	if not zettels:
 		print_no_links_for_writing(); p(); return
 	for zettel in zettels:
-		desc = 'Link to '+zettel[1]+' because...'
+		desc = descriptions[i]
 		entry_list.append((z_id, zettel[0], desc))
+		i += 1
 	incr_add_to_db(entry_list, insert_links, current_db_path)
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ READING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def read_links_all(): return query_db(None, select_links_all, current_db_path)
-def read_links_z_id_from(z_id): return query_db(z_id, select_links_z_id_from, current_db_path)
-def read_links_z_id_to(z_id): return query_db(z_id, select_links_z_id_to, current_db_path)
+def read_links_z_id_from(z_id): return query_db([z_id], select_links_z_id_from, current_db_path)
+def read_links_z_id_to(z_id): return query_db([z_id], select_links_z_id_to, current_db_path)
+def read_link_z_ids(z_id_from, z_id_to): return query_db([z_id_from, z_id_to], select_links_z_ids, current_db_path)
 
-def read_taglist_id(id): return query_db(id, select_taglist_id, current_db_path)[0] #only one tag
+def read_taglist_id(id): return query_db([id], select_taglist_id, current_db_path)[0] #only one tag
 def read_taglist_all(): return query_db(None, select_taglist_all, current_db_path)
-def read_taglist_tags_like(name): return query_db('%'+name+'%', select_taglist_tag_like, current_db_path)
+def read_taglist_tags_like(name): return query_db(['%'+name+'%'], select_taglist_tag_like, current_db_path)
 
 def read_tags_all(): return query_db(None, select_tags_all, current_db_path)
 def read_tags_all_dist(): return query_db(None, select_tags_all_dist, current_db_path)
-def read_tags_z_id(z_id): return query_db(z_id, select_tags_z_id, current_db_path)
+def read_tags_z_id(z_id): return query_db([z_id], select_tags_z_id, current_db_path)
 
 def read_tags_tag(tag): return query_tags(tag, current_db_path)
 
-def read_main_id(id): return query_db(id, select_main_id, current_db_path)[0] #only one zettel
-def read_main_z_path(name): return query_db(name, select_main_z_path, current_db_path)
+def read_main_id(id): return query_db([id], select_main_id, current_db_path)[0] #only one zettel
+def read_main_z_path(name): return query_db([name], select_main_z_path, current_db_path)
 def read_main_all(): return query_db(None, select_main_all, current_db_path)
-def read_main_z_title_like(name): return query_db('%'+name+'%', select_main_z_title_like, current_db_path)
-def read_main_z_path_like(name): return query_db('%'+name+'%', select_main_z_path_like, current_db_path)
-def read_main_z_body_like(name): return query_db('%'+name+'%', select_main_z_body_like, current_db_path)
+def read_main_z_title_like(name): return query_db(['%'+name+'%'], select_main_z_title_like, current_db_path)
+def read_main_z_path_like(name): return query_db(['%'+name+'%'], select_main_z_path_like, current_db_path)
+def read_main_z_body_like(name): return query_db(['%'+name+'%'], select_main_z_body_like, current_db_path)
 
 def read_meta_all(db_name): return query_db(None, select_meta_all, db_name)[0] #only one zettel
 
@@ -230,9 +233,9 @@ def rewrite_main_z_body(id, text):
 def rewrite_main_z_title(id, title):
 	add_to_db([title, id], update_main_z_title, current_db_path)
 
-def rewrite_links_from(z_id, zettels): 
+def rewrite_links_from(z_id, zettels, descriptions): 
 	remove_links_from(z_id)
-	write_links_from(z_id, zettels)
+	write_links_from(z_id, zettels, descriptions)
 	
 def rewrite_zettel_tags(z_id, tags): #tags attached to zettel
 	remove_tags_z_id(z_id)
@@ -369,7 +372,9 @@ def make_new_zettel():
 	comment = '# Enter the zettel text body below\n'
 	z_body = write_not_empty(comment, flag=None, allow_exit=False)
 	print_zettels_select(); p()
-	zettels_linked = zettel_picker(None, None)
+	result = zettel_picker(None, None)
+	try: zettels_linked = result[0]; descriptions = result[1]
+	except: zettels_linked = []; descriptions = []
 	print_tags_select(); p()
 	tags = tag_picker(None)
 	#generate filename for export feature
@@ -381,7 +386,7 @@ def make_new_zettel():
 	z_path += '.md'
 	z_id = write_zettel(z_title, z_path, z_body)
 	write_tags(z_id, tags)
-	write_links_from(z_id, zettels_linked)
+	write_links_from(z_id, zettels_linked, descriptions)
 	#update meta
 	#find it and enter ops sub menu
 	print_new_zettel_preview(); p()
@@ -403,10 +408,9 @@ def make_new_tag(old_tag):
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ EDITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def zettel_picker(links_init, current_z_id): #add ops to edit the list properly
-	zettels = [] 
-	try: zettels += search_zettels(links_init, current_z_id, editor_select_mode=True)
-	except TypeError: pass
-	return zettels
+	try: results = search_zettels(links_init, current_z_id, editor_select_mode=True)
+	except: pass
+	return results
 	
 def tag_picker(tags_init): #add ops to edit the list properly
 	tags = [] 
@@ -441,10 +445,10 @@ def review(): #make an actualcheck
 	print_db_meta(current_db_path)
 	errors = False
 	if not os.path.isfile(current_db_path): print_no_db_warn(); return
-	if print_zettels_warnings(None, select_no_titles_all): print_no_titles_warn(); errors = True
-	if print_zettels_warnings(None, select_no_bodies_all): print_no_bodies_warn(); errors = True
-	if print_zettels_warnings(None, select_no_links_all): print_no_links_warn(); errors = True
-	if print_zettels_warnings(None, select_self_links_all): print_self_links_warn(); errors = True
+	if print_zettels_warnings(select_no_titles_all): print_no_titles_warn(); errors = True
+	if print_zettels_warnings(select_no_bodies_all): print_no_bodies_warn(); errors = True
+	if print_zettels_warnings(select_no_links_all): print_no_links_warn(); errors = True
+	if print_zettels_warnings(select_self_links_all): print_self_links_warn(); errors = True
 	if not errors: print_check_passed()
 	p()
 
@@ -530,24 +534,33 @@ def zettel_link_edit_ops(zettel, z_id):
 		return new_linked_zettels
 	print_whole_zettel(zettel); print_zettel_link_edit_ops()
 	init_links = read_links_z_id_from(z_id)
-	linked_zettels = []
+	linked_zettels = []; descriptions = []
 	for link in init_links:
 		try: linked_zettels.append(read_main_id(link[2]))
 		except IndexError: pass
 	inp = c_prompt('')
-	if inp == 'n': zettels = zettel_picker(None, z_id)
+	if inp == 'n': 
+		result = zettel_picker(None, z_id)
+		zettels = result[0]; descriptions = result[1]
+	elif inp == 'a': 
+		result = zettel_picker(linked_zettels, z_id)
+		zettels = result[0]; descriptions = result[1]
 	elif inp == 'r': zettels = link_remover(linked_zettels)
-	elif inp == 'a': zettels = zettel_picker(linked_zettels, z_id)
 	elif inp == 'qm': main_menu()
 	else: zettels = linked_zettels
-	rewrite_links_from(z_id, zettels)
+	rewrite_links_from(z_id, zettels, descriptions)
 
-def zettel_select_ops(zettels, editor_select_mode): #when zettel list provided
+def zettel_select_ops(flag, z_id_from, zettels, editor_select_mode): #when zettel list provided
 	print_select_zettel_ops()
 	zettel = None
 	inp = c_prompt('')
 	try: 
 		zettel = zettels[int(inp)-1]
+		if z_id_from: #when following links
+			z_id_to = zettel[0]; link = None
+			if flag == 'from': link = read_link_z_ids(z_id_from, z_id_to)
+			elif flag == 'to': link = read_link_z_ids(z_id_to, z_id_from)
+			print_link_desc(link); p()
 		zettel_ops(zettel, editor_select_mode)
 	except (ValueError, IndexError): pass
 	if inp == '': return True
@@ -584,7 +597,7 @@ def tag_ops(tag, editor_select_mode):
 		if inp == '': return tag
 		elif inp =='i': 
 			print_zettels_under_tag(titles, tag);
-			zettel_select_ops(zettels, editor_select_mode); #return tag
+			zettel_select_ops(None, None, zettels, editor_select_mode); #return tag
 		elif inp == "e": new_tag = make_new_tag(tag[1]); return new_tag
 		elif inp == 'qm': main_menu()
 		print_tag_info(titles, listed_tag); print_tag_ops()
@@ -681,7 +694,7 @@ def follow_links_z_id(flag, z_id):
 	zettels = result[0]; titles = result[1]
 	while True:
 		print_zettels_links_z_id(flag, titles, z_title)
-		if zettel_select_ops(zettels, editor_select_mode=False): return
+		if zettel_select_ops(flag, z_id, zettels, editor_select_mode=False): return
 	
 def search_zettels(links_init, current_z_id, editor_select_mode):
 	def find_zettel(s, prev_found, current_zettel, linking_zettels, editor_select_mode):
@@ -761,7 +774,7 @@ def search_zettels(links_init, current_z_id, editor_select_mode):
 	if not links_init: entries = [] #init
 	else: entries = links_init
 	linking_zettels_ids = []; linking_zettels = []; 
-	current_zettel = None; descriptions = []
+	current_zettel = None; current_z_title = None; descriptions = []
 	if current_z_id: #in edit mode
 		current_zettel = read_main_id(current_z_id)
 		current_z_title = current_zettel[1]
@@ -780,7 +793,8 @@ def search_zettels(links_init, current_z_id, editor_select_mode):
 			if editor_select_mode and current_z_id != result[0] and \
 			not result[0] in linking_zettels_ids and \
 			not result in entries:
-				comment = '# Describe why you are linking "{0}"\n# to "{1}" \n'.format(current_z_title, result[1])
+				if current_z_title: comment = '# Describe why you are linking "{0}"\n# to "{1}" \n'.format(current_z_title, result[1])
+				else: comment = '# Describe why you are linking new zettel\n# to "{0}" \n'.format(result[1])
 				descriptions.append(write_not_empty(comment, '', allow_exit=False))
 				entries.append(result)
 			elif editor_select_mode and current_z_id == result[0]:
@@ -793,7 +807,8 @@ def search_zettels(links_init, current_z_id, editor_select_mode):
 			if editor_select_mode and current_z_id != result[0] and \
 			not result[0] in linking_zettels_ids and \
 			not result in entries:
-				comment = '# Describe why you are linking "{0}"\n# to "{1}" \n'.format(current_z_title, result[1])
+				if current_z_title: comment = '# Describe why you are linking "{0}"\n# to "{1}" \n'.format(current_z_title, result[1])
+				else: comment = '# Describe why you are linking new zettel\n# to "{0}" \n'.format(result[1])
 				descriptions.append(write_not_empty(comment, '', allow_exit=False))
 				entries.append(result)
 			elif editor_select_mode and current_z_id == result[0]:
@@ -801,7 +816,7 @@ def search_zettels(links_init, current_z_id, editor_select_mode):
 			elif editor_select_mode and result[0] in linking_zettels_ids:
 				print_picking_same_as_linking_zettel(); p()
 			s['found'] = None; s['inp'] = ''; s['name'] = s['name_prev'] #roll back to resume narrowed search
-	return entries
+	return (entries, descriptions)
 
 def search_tags(tags_init, editor_select_mode): #must be passed in
 	def find_tags(s, prev_found, editor_select_mode): #must be passed in
@@ -971,8 +986,8 @@ def print_dupe_links(entries):
 		id_prev = z_id
 	print_dupe_links_warn()
 		
-def print_zettels_warnings(query, exec_str): #for other kinds of errors
-	entries = query_db(query, exec_str, current_db_path); num = 1
+def print_zettels_warnings(exec_str): #for other kinds of errors
+	entries = query_db(None, exec_str, current_db_path); num = 1
 	if entries == []: return False;
 	divider()
 	for entry in entries:
@@ -1078,6 +1093,16 @@ def print_no_links_for_writing():
 	print(tw.fill('no links provided for writing'))
 
 #GENERAL SELECT / SEARCH
+def print_header(sym, name):
+	if len(name) < text_width: 
+		l=(text_width - len(name)-2)//2; 
+		name=sym*l+' '+name+' '+sym*l;
+		if len(name) < text_width: name += sym #compensate
+		print(name)
+	else: 
+		print(tw.fill(name))
+		print(sym*text_width)
+		
 def print_selected(entries, i):
 	strn = str_from_list(False, entries, i, '', ' | ', '').strip()
 	divider()
@@ -1090,7 +1115,6 @@ def print_etries_list(entries, i, current, selected, linked):
 		for entry in entries:
 			if not entry[1]: title = '─ no name ─'
 			else: title = entry[i]
-			#⚯⧟☐☑☒◻◼■□▣⏍⏀⏣∩∪
 			if current and num == current: print(tw_i.fill('▣ {0}. {1}'.format(str(num), title)))
 			elif selected and num in selected: print(tw_i.fill('■ {0}. {1}'.format(str(num), title)))
 			elif linked and num in linked: print(tw_i.fill('☍ {0}. {1}'.format(str(num), title)))
@@ -1173,16 +1197,11 @@ def print_single_zettel(zettel):
 	if links_out or links_in: print(' linked')
 	if links_out: print(tw_links_out.fill(links_out_str)); print()
 	if links_in: print(tw_links_in.fill(links_in_str)); print()
-	
-def print_header(sym, name):
-	if len(name) < text_width: 
-		l=(text_width - len(name)-2)//2; 
-		name=sym*l+' '+name+' '+sym*l;
-		if len(name) < text_width: name += sym #compensate
-		print(name)
-	else: 
-		print(tw.fill(name))
-		print(sym*text_width)
+
+def print_link_desc(link):
+	cl_divider()
+	try: print(tw.fill(link[0][3]))
+	except: pass
 
 #SEARCHING ZETTEL
 def print_zettel_search_stats(tags, name):
@@ -1540,10 +1559,9 @@ def query_db(query, exec_line, db_path):
 		if conn:
 			try:
 				c = conn.cursor()
-				if query: 
-					c.execute(exec_line, (query,))
-				else: 
-					c.execute(exec_line)
+				if not query: c.execute(exec_line)
+				elif len(query) == 1: c.execute(exec_line, (query[0],))
+				elif len(query) == 2: c.execute(exec_line, (query[0], query[1],))
 				found = c.fetchall()
 			except Error as e: print(e); p(); main_menu()
 			conn.close(); return found
