@@ -409,13 +409,12 @@ def make_new_tag(old_tag):
 #▒▒▒▒▒▒▒▒▒▒▒▒ EDITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def zettel_picker(links_init, current_z_id): #add ops to edit the list properly
 	try: results = search_zettels(links_init, current_z_id, editor_select_mode=True)
-	except: pass
+	except TypeError: return None
 	return results
 	
 def tag_picker(tags_init): #add ops to edit the list properly
-	tags = [] 
-	try: tags += search_tags(tags_init, editor_select_mode=True)
-	except TypeError: pass
+	try: tags = search_tags(tags_init, editor_select_mode=True)
+	except TypeError: return None
 	return tags
 	
 def edit_main_z_title(z_id):
@@ -485,6 +484,7 @@ def zettel_ops(zettel, editor_select_mode):
 			elif inp == 'qm': main_menu()
 		else:
 			if inp == '': return zettel
+			elif inp == 'q': return None
 			elif inp == 'qm': main_menu()
 		zettel = read_main_id(z_id) #refresh to reflect changes
 		print_whole_zettel(zettel); 
@@ -534,21 +534,21 @@ def zettel_link_edit_ops(zettel, z_id):
 		return new_linked_zettels
 	print_whole_zettel(zettel); print_zettel_link_edit_ops()
 	init_links = read_links_z_id_from(z_id)
-	linked_zettels = []; descriptions = []
+	linked_zettels = []; descriptions = []; zettels = None
 	for link in init_links:
 		try: linked_zettels.append(read_main_id(link[2]))
 		except IndexError: pass
 	inp = c_prompt('')
 	if inp == 'n': 
 		result = zettel_picker(None, z_id)
-		zettels = result[0]; descriptions = result[1]
+		if result: zettels = result[0]; descriptions = result[1]
 	elif inp == 'a': 
 		result = zettel_picker(linked_zettels, z_id)
-		zettels = result[0]; descriptions = result[1]
+		if result: zettels = result[0]; descriptions = result[1]
 	elif inp == 'r': zettels = link_remover(linked_zettels)
 	elif inp == 'qm': main_menu()
 	else: zettels = linked_zettels
-	rewrite_links_from(z_id, zettels, descriptions)
+	if zettels and descriptions: rewrite_links_from(z_id, zettels, descriptions)
 
 def zettel_select_ops(flag, z_id_from, zettels, editor_select_mode): #when zettel list provided
 	print_select_zettel_ops()
@@ -859,15 +859,17 @@ def search_tags(tags_init, editor_select_mode): #must be passed in
 		if s['stop']: break
 		if s['found'] and not s['exact']: 
 			result = tag_ops(s['found'], editor_select_mode)
-			if editor_select_mode: 
+			if editor_select_mode and not result in entries: 
 				entries.append(result)
-				entries = list(dict.fromkeys(entries)) #dedup
+			elif editor_select_mode and result in entries: 
+				entries.remove(result) #toggle
 			s['found'] = None; s['inp'] = '' #keep searching if not exact found
 		if s['exact']:
 			result = tag_ops(s['found'], editor_select_mode)
-			if editor_select_mode: 
+			if editor_select_mode and not result in entries: 
 				entries.append(result)
-				entries = list(dict.fromkeys(entries)) #dedup
+			elif editor_select_mode and result in entries: 
+				entries.remove(result) #toggle
 			s['found'] = None; s['inp'] = ''; s['name'] = s['name_prev'] #roll back to resume narrowed search
 	return entries
 
@@ -1353,6 +1355,7 @@ def print_zettel_ops():
 def print_zettel_ops_lim():
 	divider()
 	print_qc('')
+	print(tw_i.fill('(q) - return | discard'))
 	print_qm()
 
 def print_zettel_edit_ops():
