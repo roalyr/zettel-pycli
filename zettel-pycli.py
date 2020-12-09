@@ -61,7 +61,9 @@ create_meta_table = '''
 		db_name text NOT NULL, datetime text NOT NULL,
 		tot_zettels integer NOT NULL, tot_links integer NOT NULL,
 		tot_no_links integer NOT NULL, tot_self_links integer NOT NULL,
-		tot_no_bodies integer NOT NULL, tot_no_titles integer NOT NULL
+		tot_no_bodies integer NOT NULL, tot_no_titles integer NOT NULL,
+		tot_tags_assigned integer NOT NULL, tot_unique_tags integer NOT NULL,
+		tot_same_titles integer NOT NULL
 	); '''
 create_main_table = '''
 	CREATE TABLE IF NOT EXISTS main (
@@ -84,11 +86,15 @@ create_self_links_table = '''
 	); '''
 create_no_bodies_table = '''
 	CREATE TABLE IF NOT EXISTS no_bodies (
-		id integer PRIMARY KEY, z_id_from integer NOT NULL
+		id integer PRIMARY KEY, z_id integer NOT NULL
 	); '''
 create_no_titles_table = '''
 	CREATE TABLE IF NOT EXISTS no_titles (
-		id integer PRIMARY KEY, z_id_from integer NOT NULL
+		id integer PRIMARY KEY, z_id integer NOT NULL
+	); '''
+create_same_titles_table = '''
+	CREATE TABLE IF NOT EXISTS same_titles (
+		id integer PRIMARY KEY, z_id integer NOT NULL
 	); '''
 create_tags_table = '''
 	CREATE TABLE IF NOT EXISTS tags (
@@ -104,15 +110,20 @@ insert_main = '''INSERT INTO main ( z_title, z_path, z_body ) VALUES ( ?, ?, ? )
 insert_links = '''INSERT INTO links ( z_id_from, z_id_to, desc ) VALUES ( ?, ?, ? ) '''
 insert_self_links = '''INSERT INTO self_links ( z_id_from ) VALUES ( ? ) '''
 insert_no_links = '''INSERT INTO no_links ( z_id_from ) VALUES ( ? ) '''
-insert_no_bodies = '''INSERT INTO no_bodies ( z_id_from ) VALUES ( ? ) '''
-insert_no_titles = '''INSERT INTO no_titles ( z_id_from ) VALUES ( ? ) '''
+insert_no_bodies = '''INSERT INTO no_bodies ( z_id ) VALUES ( ? ) '''
+insert_no_titles = '''INSERT INTO no_titles ( z_id ) VALUES ( ? ) '''
+insert_same_titles = '''INSERT INTO same_titles ( z_id ) VALUES ( ? ) '''
 insert_tags = '''INSERT INTO tags ( z_id, tag ) VALUES ( ?, ? ) '''
 insert_taglist = '''INSERT OR IGNORE INTO taglist ( tag ) VALUES ( ? ) ''' 
 insert_meta = '''
 	INSERT INTO meta (
-		db_name, datetime, tot_zettels, tot_links,
-		tot_no_links, tot_self_links, tot_no_bodies, tot_no_titles
-	) VALUES ( ?, ?, ?, ?, ?, ?, ?, ? ) ''' #add tags num
+		db_name, datetime, 
+		tot_zettels, tot_links,
+		tot_no_links, tot_self_links, 
+		tot_no_bodies, tot_no_titles,
+		tot_tags_assigned, tot_unique_tags,
+		tot_same_titles
+	) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ) ''' #add tags num
 
 #SELECT
 select_meta_all = "SELECT * FROM meta"
@@ -128,6 +139,7 @@ select_self_links_all = "SELECT * FROM self_links"
 select_no_links_all = "SELECT * FROM no_links"
 select_no_bodies_all = "SELECT * FROM no_bodies"
 select_no_titles_all = "SELECT * FROM no_titles"
+select_same_titles_all = "SELECT * FROM same_titles"
 
 select_taglist_id = "SELECT * FROM taglist WHERE id = ?"
 select_taglist_all = "SELECT * FROM taglist"
@@ -162,6 +174,7 @@ delete_taglist_all = "DELETE FROM taglist"
 delete_self_links_all = "DELETE FROM self_links"
 delete_no_links_all = "DELETE FROM no_links"
 delete_no_titles_all = "DELETE FROM no_titles"
+delete_same_titles_all = "DELETE FROM same_titles"
 delete_no_bodies_all = "DELETE FROM no_bodies"
 
 delete_tags_z_id = "DELETE FROM tags WHERE z_id = ?"
@@ -174,8 +187,9 @@ delete_links_z_id_to = "DELETE FROM links WHERE z_id_to = ?"
 def write_no_titles(z_id): add_to_db([z_id], insert_no_titles, current_db_path)
 def write_no_bodies(z_id): add_to_db([z_id], insert_no_bodies, current_db_path)
 def write_no_links(z_id): add_to_db([z_id], insert_no_links, current_db_path)
-def write_self_titles(z_id): add_to_db([z_id], insert_self_links, current_db_path)
-	
+def write_self_links(z_id): add_to_db([z_id], insert_self_links, current_db_path)
+def write_same_titles(z_id): add_to_db([z_id], insert_same_titles, current_db_path)
+
 def write_zettel(z_title, z_path, z_body):
 	z_id = add_to_db([z_title, z_path, z_body], insert_main, current_db_path)
 	return z_id #regurns only last id
@@ -277,19 +291,25 @@ def rescan_meta(): #only when checking
 	delete_from_db(None, delete_self_links_all, current_db_path)
 	delete_from_db(None, delete_no_links_all, current_db_path)
 	delete_from_db(None, delete_no_titles_all, current_db_path)
+	delete_from_db(None, delete_same_titles_all, current_db_path)
 	delete_from_db(None, delete_no_bodies_all, current_db_path)
 	dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
 	zettels = read_main_all()
 	links = read_links_all()
-	tags = read_tags_all()
 	tot_zettels = len(zettels)
 	tot_links = len(links)
 	tot_no_bodies = 0
 	tot_no_titles = 0
 	tot_no_links = 0
 	tot_self_links = 0
+	tot_tags_assigned = len(read_tags_all())
+	tot_unique_tags = len(read_taglist_all())
+	tot_same_titles = 0
+	zettel_titles = []; zettel_titles_dupes = [];
 	for zettel in zettels:
 		z_id = zettel[0]
+		if not zettel[1] in zettel_titles: zettel_titles.append(zettel[1])
+		else: zettel_titles_dupes.append(zettel[1])
 		if not zettel[1]: 
 			tot_no_titles += 1
 			write_no_titles(z_id)
@@ -302,7 +322,12 @@ def rescan_meta(): #only when checking
 	for link in links:
 		if link[1] == link[2]: 
 			tot_self_links += 1
-			write_self_titles(link[1])
+			write_self_links(link[1])
+	for title in zettel_titles_dupes:
+		entries = read_main_z_title_like(title)
+		for entry in entries:
+			tot_same_titles += 1
+			write_same_titles(entry[0])
 	metadata = [
 		database_name, #
 		dt_str, #
@@ -312,6 +337,9 @@ def rescan_meta(): #only when checking
 		tot_self_links, #
 		tot_no_bodies, #
 		tot_no_titles, #
+		tot_tags_assigned, #
+		tot_unique_tags, #
+		tot_same_titles, #
 	]
 	add_to_db(metadata, insert_meta, current_db_path)
 
@@ -430,13 +458,16 @@ def edit_main_z_body(z_id):
 	rewrite_main_z_body(z_id, new_body)
 	
 def delete_zettel(z_id):
-	print('delete zettel')
-	remove_main_id(z_id)
-	remove_links_from(z_id)
-	remove_links_to(z_id)
-	remove_tags_z_id(z_id)
-	rescan_taglist()
-	p()
+	z_title = read_main_id(z_id)[1]
+	print_zettel_deletion_warn(z_title);
+	inp = c_prompt("really? ('yes' to proceed)")
+	if inp == 'yes': 
+		remove_main_id(z_id)
+		remove_links_from(z_id)
+		remove_links_to(z_id)
+		remove_tags_z_id(z_id)
+		rescan_taglist(); rescan_meta()
+		print_zetel_deletion_success(z_title); p()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYZE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def review(): #make an actualcheck
@@ -445,6 +476,7 @@ def review(): #make an actualcheck
 	errors = False
 	if not os.path.isfile(current_db_path): print_no_db_warn(); return
 	if print_zettels_warnings(select_no_titles_all): print_no_titles_warn(); errors = True
+	if print_zettels_warnings(select_same_titles_all): print_same_titles_warn(); errors = True
 	if print_zettels_warnings(select_no_bodies_all): print_no_bodies_warn(); errors = True
 	if print_zettels_warnings(select_no_links_all): print_no_links_warn(); errors = True
 	if print_zettels_warnings(select_self_links_all): print_self_links_warn(); errors = True
@@ -909,6 +941,11 @@ def print_no_titles_warn():
 there are zettels without titles listed above, inspect
 '''.strip()))
 
+def print_same_titles_warn(): 
+	print(''); print(tw.fill('''
+some of the zettels have the same titles, edit them
+'''.strip()))
+
 def print_no_bodies_warn(): 
 	print(''); print(tw.fill('''
 there are zettels without text listed above, fill them
@@ -1134,6 +1171,17 @@ def print_entry_removal():
 	print_qm()
 
 #ZETTEL WRITING / READING
+def print_zettel_deletion_warn(z_title):
+	cl_divider()
+	print(tw.fill('''
+you are about to delete "{0}". I will remove the tags and links
+related to it as well
+'''.format(z_title).strip()))
+
+def print_zetel_deletion_success(z_title):
+	cl_divider()
+	print(tw.fill('"{0}" was removed from the database entirely'.format(z_title)))
+	
 def print_zettels_select():
 	cl_divider(); 
 	print(tw.fill('select zettels that you want to LINK to'))
@@ -1201,9 +1249,12 @@ def print_single_zettel(zettel):
 	if links_in: print(tw_links_in.fill(links_in_str)); print()
 
 def print_link_desc(link):
+	desc = link[0][3]
+	title_from = read_main_id(link[0][1])[1]
+	title_to = read_main_id(link[0][2])[1]
 	cl_divider()
-	try: print(tw.fill(link[0][3]))
-	except: pass
+	print(tw.fill('"{0}" links to "{1}" because:'.format(title_from, title_to)))
+	print(tw.fill(desc))
 
 #SEARCHING ZETTEL
 def print_zettel_search_stats(tags, name):
@@ -1266,12 +1317,15 @@ def print_db_meta(db_name):
 	print(tw_i.fill('created: {}'.format(meta[2])))
 	print(tw_i.fill('total number of zettels: {}'.format(meta[3])))
 	print(tw_i.fill('total number of links: {}'.format(meta[4])))
+	print(tw_i.fill('total tags assigned: {}'.format(meta[9])))
+	print(tw_i.fill('total unique tags: {}'.format(meta[10])))
 	divider()
 	print(tw_i.fill('warnings:'))
 	print(tw_i.fill('zettels without links: {}'.format(meta[5])))
 	print(tw_i.fill('zettels that link to themselves: {}'.format(meta[6])))
 	print(tw_i.fill('empty zettels: {}'.format(meta[7])))
 	print(tw_i.fill('zettels without titles: {}'.format(meta[8])))
+	print(tw_i.fill('zettels with same titles: {}'.format(meta[11])))
 
 #GIT OPS
 def print_git_current_head(): 
@@ -1596,8 +1650,9 @@ def add_to_db(entry, exec_line, db_path):
 				if len(entry) == 1: c.execute(exec_line, (entry[0],))
 				elif len(entry) == 2: c.execute(exec_line, (entry[0], entry[1],))
 				elif len(entry) == 3: c.execute(exec_line, (entry[0], entry[1], entry[2],))
-				elif len(entry) == 8: c.execute(exec_line, (entry[0], entry[1], entry[2],
-					entry[3], entry[4], entry[5], entry[6], entry[7],))
+				#for meta
+				elif len(entry) == 11: c.execute(exec_line, (entry[0], entry[1], entry[2],
+					entry[3], entry[4], entry[5], entry[6], entry[7], entry[8], entry[9], entry[10],))
 				else: #an exception
 					print('Attempted to write', len(entry), 'fields, which is not supported')
 					print('The SQLite command is:', exec_line)
@@ -1654,6 +1709,7 @@ def import_to_db():
 				c.execute(create_no_links_table); c.execute(create_self_links_table)
 				c.execute(create_tags_table); c.execute(create_no_bodies_table)
 				c.execute(create_no_titles_table); c.execute(create_taglist_table);
+				c.execute(create_same_titles_table); 
 				#populate tables
 				links = []; invalid_links = []; dupe_links = []; written_links = []
 				#main table
@@ -1729,9 +1785,11 @@ def init_new_db():
 				c.execute(create_no_links_table); c.execute(create_self_links_table)
 				c.execute(create_tags_table); c.execute(create_no_bodies_table)
 				c.execute(create_no_titles_table); c.execute(create_taglist_table);
+				c.execute(create_same_titles_table); 
 				#write meta
 				c.execute(insert_meta, (database_name, dt_str, 0, 0, 0, 0, 0, 0,))
 				conn.commit()
+				p()
 			except Error as e: print(e); p(); main_menu()
 			conn.close()
 			print_db_meta(new_db_path)
