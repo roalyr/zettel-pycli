@@ -185,24 +185,24 @@ delete_links_z_id_from = "DELETE FROM links WHERE z_id_from = ?"
 delete_links_z_id_to = "DELETE FROM links WHERE z_id_to = ?"
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ WRITING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def write_no_titles(z_id): add_to_db([z_id], insert_no_titles, current_db_path)
-def write_no_bodies(z_id): add_to_db([z_id], insert_no_bodies, current_db_path)
-def write_no_links(z_id): add_to_db([z_id], insert_no_links, current_db_path)
-def write_self_links(z_id): add_to_db([z_id], insert_self_links, current_db_path)
-def write_same_titles(z_id): add_to_db([z_id], insert_same_titles, current_db_path)
+def write_no_titles(z_id): add_to_db([z_id], insert_no_titles)
+def write_no_bodies(z_id): add_to_db([z_id], insert_no_bodies)
+def write_no_links(z_id): add_to_db([z_id], insert_no_links)
+def write_self_links(z_id): add_to_db([z_id], insert_self_links)
+def write_same_titles(z_id): add_to_db([z_id], insert_same_titles)
 
 def write_zettel(z_title, z_path, z_body):
-	z_id = add_to_db([z_title, z_path, z_body], insert_main, current_db_path)
+	z_id = add_to_db([z_title, z_path, z_body], insert_main)
 	return z_id #regurns only last id
 
 def write_tags(z_id, tags):
 	entry_list = []
 	for tag in tags: #swap tag ID with z_id
 		entry_list.append((z_id, tag[1]))
-	incr_add_to_db(entry_list, insert_tags, current_db_path)
+	incr_add_to_db(entry_list, insert_tags)
 
 def write_taglist_tag(tags):
-	t_id = incr_add_to_db(tags, insert_taglist, current_db_path)
+	t_id = incr_add_to_db(tags, insert_taglist)
 	return t_id #regurns only last id
 	
 def write_links_from(z_id, zettels, descriptions):
@@ -213,41 +213,41 @@ def write_links_from(z_id, zettels, descriptions):
 		desc = descriptions[i]
 		entry_list.append((z_id, zettel[0], desc))
 		i += 1
-	incr_add_to_db(entry_list, insert_links, current_db_path)
+	incr_add_to_db(entry_list, insert_links)
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ READING DB OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-def read_links_all(): return query_db(None, select_links_all, current_db_path)
-def read_links_z_id_from(z_id): return query_db([z_id], select_links_z_id_from, current_db_path)
-def read_links_z_id_to(z_id): return query_db([z_id], select_links_z_id_to, current_db_path)
-def read_link_z_ids(z_id_from, z_id_to): return query_db([z_id_from, z_id_to], select_links_z_ids, current_db_path)
+def read_links_all(): return query_db(None, select_links_all)
+def read_links_z_id_from(z_id): return query_db([z_id], select_links_z_id_from)
+def read_links_z_id_to(z_id): return query_db([z_id], select_links_z_id_to)
+def read_link_z_ids(z_id_from, z_id_to): return query_db([z_id_from, z_id_to], select_links_z_ids)
 
-def read_taglist_id(id): return query_db([id], select_taglist_id, current_db_path)[0] #only one tag
-def read_taglist_all(): return query_db(None, select_taglist_all, current_db_path)
-def read_taglist_tags_like(name): return query_db(['%'+name+'%'], select_taglist_tag_like, current_db_path)
+def read_taglist_id(id): return query_db([id], select_taglist_id)[0] #only one tag
+def read_taglist_all(): return query_db(None, select_taglist_all)
+def read_taglist_tags_like(name): return query_db(['%'+name+'%'], select_taglist_tag_like, )
 
-def read_tags_all(): return query_db(None, select_tags_all, current_db_path)
-def read_tags_all_dist(): return query_db(None, select_tags_all_dist, current_db_path)
-def read_tags_z_id(z_id): return query_db([z_id], select_tags_z_id, current_db_path)
+def read_tags_all(): return query_db(None, select_tags_all, )
+def read_tags_all_dist(): return query_db(None, select_tags_all_dist, )
+def read_tags_z_id(z_id): return query_db([z_id], select_tags_z_id, )
 
-def read_tags_tag(tag): return query_tags(tag, current_db_path)
+def read_tags_tag(tag): return query_tags(tag, )
 
-def read_main_id(id): return query_db([id], select_main_id, current_db_path)[0] #only one zettel
-def read_main_z_path(name): return query_db([name], select_main_z_path, current_db_path)
-def read_main_all(): return query_db(None, select_main_all, current_db_path)
-def read_main_z_title(name): return query_db([name], select_main_z_title, current_db_path)
-def read_main_z_title_like(name): return query_db(['%'+name+'%'], select_main_z_title_like, current_db_path)
-def read_main_z_path_like(name): return query_db(['%'+name+'%'], select_main_z_path_like, current_db_path)
-def read_main_z_body_like(name): return query_db(['%'+name+'%'], select_main_z_body_like, current_db_path)
+def read_main_id(id): return query_db([id], select_main_id, )[0] #only one zettel
+def read_main_z_path(name): return query_db([name], select_main_z_path, )
+def read_main_all(): return query_db(None, select_main_all, )
+def read_main_z_title(name): return query_db([name], select_main_z_title, )
+def read_main_z_title_like(name): return query_db(['%'+name+'%'], select_main_z_title_like, )
+def read_main_z_path_like(name): return query_db(['%'+name+'%'], select_main_z_path_like, )
+def read_main_z_body_like(name): return query_db(['%'+name+'%'], select_main_z_body_like, )
 
-def read_meta_all(db_name): return query_db(None, select_meta_all, db_name)[0] #only one zettel
+def read_meta_all(): return query_db(None, select_meta_all, )[0] #only one zettel
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ REWRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 #called by 'edit' functions
 def rewrite_main_z_body(id, text):
-	add_to_db([text, id], update_main_z_body, current_db_path)
+	add_to_db([text, id], update_main_z_body, )
 	
 def rewrite_main_z_title(id, title):
-	add_to_db([title, id], update_main_z_title, current_db_path)
+	add_to_db([title, id], update_main_z_title, )
 
 def rewrite_links_from(z_id, zettels, descriptions): 
 	remove_links_from(z_id)
@@ -259,42 +259,42 @@ def rewrite_zettel_tags(z_id, tags): #tags attached to zettel
 	rescan_taglist() #might contain new tags or remove old
 	
 def rewrite_tags_tag(new_tag, old_tag): 
-	add_to_db([old_tag, new_tag], update_tags_tag, current_db_path)
+	add_to_db([old_tag, new_tag], update_tags_tag, )
 	rescan_taglist() #reflect changes
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ REMOVE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def remove_links_from(z_id): #after zettel removal, or optional
-	delete_from_db(z_id, delete_links_z_id_from, current_db_path)
+	delete_from_db(z_id, delete_links_z_id_from, )
 	
 def remove_links_to(z_id): #after zettel removal, or optional
-	delete_from_db(z_id, delete_links_z_id_to, current_db_path)
+	delete_from_db(z_id, delete_links_z_id_to, )
 	
 def remove_tags_z_id(z_id): #after zettel removal, or optional
-	delete_from_db(z_id, delete_tags_z_id, current_db_path)
+	delete_from_db(z_id, delete_tags_z_id, )
 	rescan_taglist() #might remove all tag instances
 	
 def remove_tags_tag(name):
-	delete_from_db(name, delete_tags_tag, current_db_path)
+	delete_from_db(name, delete_tags_tag, )
 	rescan_taglist() #removes all instances
 
 def remove_main_id(id):
-	delete_from_db(id, delete_main_id, current_db_path)
+	delete_from_db(id, delete_main_id, )
 	
 #▒▒▒▒▒▒▒▒▒▒▒▒ REBUILD OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def rescan_taglist(): #after tag edit
 	tags = []
-	delete_from_db(None, delete_taglist_all, current_db_path)
+	delete_from_db(None, delete_taglist_all, )
 	for entry in read_tags_all_dist():
 		tags.append((entry[2],)) #need only names
-	incr_add_to_db(tags, insert_taglist, current_db_path)
+	incr_add_to_db(tags, insert_taglist, )
 	
 def rescan_meta(): #only when checking
-	delete_from_db(None, delete_meta_all, current_db_path)
-	delete_from_db(None, delete_self_links_all, current_db_path)
-	delete_from_db(None, delete_no_links_all, current_db_path)
-	delete_from_db(None, delete_no_titles_all, current_db_path)
-	delete_from_db(None, delete_same_titles_all, current_db_path)
-	delete_from_db(None, delete_no_bodies_all, current_db_path)
+	delete_from_db(None, delete_meta_all, )
+	delete_from_db(None, delete_self_links_all, )
+	delete_from_db(None, delete_no_links_all, )
+	delete_from_db(None, delete_no_titles_all, )
+	delete_from_db(None, delete_same_titles_all, )
+	delete_from_db(None, delete_no_bodies_all, )
 	dt_str = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
 	zettels = read_main_all()
 	links = read_links_all()
@@ -343,7 +343,7 @@ def rescan_meta(): #only when checking
 		tot_unique_tags, #
 		tot_same_titles, #
 	]
-	add_to_db(metadata, insert_meta, current_db_path)
+	add_to_db(metadata, insert_meta, )
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ ZETTEL / TAG WRITING OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def write_num_not_empty(type, prompt_str):
@@ -474,7 +474,7 @@ def delete_zettel(z_id):
 #▒▒▒▒▒▒▒▒▒▒▒▒ ANALYZE OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
 def review(): #make an actualcheck
 	rescan_meta()
-	print_db_meta(current_db_path)
+	print_db_meta()
 	errors = False
 	if not os.path.isfile(current_db_path): print_no_db_warn(); return
 	if print_zettels_warnings(select_no_titles_all): print_no_titles_warn(); errors = True
@@ -659,7 +659,7 @@ def main_menu():
 	print_main_ops()
 	while True:
 		inp = c_prompt('MENU')
-		if inp == "i": print_db_meta(current_db_path); p()
+		if inp == "i": print_db_meta(); p()
 		elif inp == "n": make_new_zettel();
 		elif inp == "z": search_zettels(None, None, editor_select_mode=False); 
 		elif inp == "t": search_tags(None, editor_select_mode=False); 
@@ -670,7 +670,7 @@ def main_menu():
 		elif inp == "import": import_zettels();
 		elif inp == "compile": compile_myself();
 		elif inp == "git": git_menu(); 
-		elif inp == "q": quit()
+		elif inp == "q": return
 		print_main_ops()
 
 def git_menu():
@@ -1028,7 +1028,7 @@ def print_dupe_links(entries):
 	print_dupe_links_warn()
 		
 def print_zettels_warnings(exec_str): #for other kinds of errors
-	entries = query_db(None, exec_str, current_db_path); num = 1
+	entries = query_db(None, exec_str, ); num = 1
 	if entries == []: return False;
 	divider()
 	for entry in entries:
@@ -1312,8 +1312,8 @@ def print_zettels_under_tag(titles, tag):
 	print(tw_i.fill('zettels under tag: {0} - {1}'.format(tag[1], len(titles))))
 
 #DB META
-def print_db_meta(db_name):
-	meta = read_meta_all(db_name)
+def print_db_meta():
+	meta = read_meta_all()
 	cl_divider()
 	print(tw_i.fill('database name: {}'.format(meta[1])))
 	print(tw_i.fill('created: {}'.format(meta[2])))
@@ -1595,97 +1595,82 @@ def import_zettels():
 	#str?
 	import_to_db();
 	
-def delete_from_db(query, exec_line, db_path):
-	conn = None
-	try: conn = sqlite3.connect(db_path)
-	except Error as e: print(e)
-	finally:
-		if conn:
-			try:
-				c = conn.cursor()
-				if query: 
-					c.execute(exec_line, (query,))
-				else: 
-					c.execute(exec_line)
-			except Error as e: print(e); p(); main_menu()
-			conn.commit(); conn.close();
+def delete_from_db(query, exec_line, ):
+	global conn
+	if conn:
+		try:
+			c = conn.cursor()
+			if query: 
+				c.execute(exec_line, (query,))
+			else: 
+				c.execute(exec_line)
+		except Error as e: print(e); p(); main_menu()
+		conn.commit(); 
 	
-def query_db(query, exec_line, db_path):
-	found = []; conn = None
-	try: conn = sqlite3.connect(db_path)
-	except Error as e: print(e)
-	finally:
-		if conn:
-			try:
-				c = conn.cursor()
-				if not query: c.execute(exec_line)
-				elif len(query) == 1: c.execute(exec_line, (query[0],))
-				elif len(query) == 2: c.execute(exec_line, (query[0], query[1],))
-				found = c.fetchall()
-			except Error as e: print(e); p(); main_menu()
-			conn.close(); return found
+def query_db(query, exec_line, ):
+	found = []; global conn
+	if conn:
+		try:
+			c = conn.cursor()
+			if not query: c.execute(exec_line)
+			elif len(query) == 1: c.execute(exec_line, (query[0],))
+			elif len(query) == 2: c.execute(exec_line, (query[0], query[1],))
+			found = c.fetchall()
+		except Error as e: print(e); p(); main_menu()
+		return found
 			
-def query_tags(tag, db_path): #for AND condition filtering
-	found = []; conn = None
-	try: conn = sqlite3.connect(db_path)
-	except Error as e: print(e)
-	finally:
-		if conn:
-			try:
-				c = conn.cursor()
-				if tag: 
-					c.execute(select_tags_tag, (tag,))
-				else: 
-					return found
-				found = c.fetchall()
-			except Error as e: print(e); p(); main_menu()
-			conn.close(); return found
+def query_tags(tag, ): #for AND condition filtering
+	found = []; global conn
+	if conn:
+		try:
+			c = conn.cursor()
+			if tag: 
+				c.execute(select_tags_tag, (tag,))
+			else: 
+				return found
+			found = c.fetchall()
+		except Error as e: print(e); p(); main_menu()
+		return found
 			
-def add_to_db(entry, exec_line, db_path):
-	conn = None; id = None
-	try: conn = sqlite3.connect(db_path)
-	except Error as e: print(e)
-	finally:
-		if conn:
-			try:
-				c = conn.cursor()
+def add_to_db(entry, exec_line, ):
+	id = None
+	global conn
+	if conn:
+		try:
+			c = conn.cursor()
+			if len(entry) == 1: c.execute(exec_line, (entry[0],))
+			elif len(entry) == 2: c.execute(exec_line, (entry[0], entry[1],))
+			elif len(entry) == 3: c.execute(exec_line, (entry[0], entry[1], entry[2],))
+			#for meta
+			elif len(entry) == 11: c.execute(exec_line, (entry[0], entry[1], entry[2],
+				entry[3], entry[4], entry[5], entry[6], entry[7], entry[8], entry[9], entry[10],))
+			else: #an exception
+				print('Attempted to write', len(entry), 'fields, which is not supported')
+				print('The SQLite command is:', exec_line)
+				quit()
+		except Error as e: print(e); p(); main_menu()
+		conn.commit()
+		id = c.lastrowid
+		return id
+			
+def incr_add_to_db(entry_list, exec_line, ):
+	id = None
+	global conn
+	if conn:
+		try:
+			c = conn.cursor()
+			for entry in entry_list:
 				if len(entry) == 1: c.execute(exec_line, (entry[0],))
 				elif len(entry) == 2: c.execute(exec_line, (entry[0], entry[1],))
 				elif len(entry) == 3: c.execute(exec_line, (entry[0], entry[1], entry[2],))
-				#for meta
-				elif len(entry) == 11: c.execute(exec_line, (entry[0], entry[1], entry[2],
-					entry[3], entry[4], entry[5], entry[6], entry[7], entry[8], entry[9], entry[10],))
-				else: #an exception
+				else:  #an exception
 					print('Attempted to write', len(entry), 'fields, which is not supported')
 					print('The SQLite command is:', exec_line)
 					quit()
-			except Error as e: print(e); p(); main_menu()
-			conn.commit()
-			id = c.lastrowid
-			conn.close();
-			return id
-			
-def incr_add_to_db(entry_list, exec_line, db_path):
-	conn = None; id = None
-	try: conn = sqlite3.connect(db_path)
-	except Error as e: print(e)
-	finally:
-		if conn:
-			try:
-				c = conn.cursor()
-				for entry in entry_list:
-					if len(entry) == 1: c.execute(exec_line, (entry[0],))
-					elif len(entry) == 2: c.execute(exec_line, (entry[0], entry[1],))
-					elif len(entry) == 3: c.execute(exec_line, (entry[0], entry[1], entry[2],))
-					else:  #an exception
-						print('Attempted to write', len(entry), 'fields, which is not supported')
-						print('The SQLite command is:', exec_line)
-						quit()
-			except Error as e: print(e); p(); main_menu()
-			conn.commit()
-			id = c.lastrowid
-			conn.close();
-			return id
+		except Error as e: print(e); p(); main_menu()
+		conn.commit()
+		id = c.lastrowid
+		return id
 
 def import_to_db():
 	print_importing_warn(); p()
@@ -1794,7 +1779,6 @@ def init_new_db():
 				p()
 			except Error as e: print(e); p(); main_menu()
 			conn.close()
-			print_db_meta(new_db_path)
 			p()
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ FILE & TEST OPS ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -1969,4 +1953,10 @@ def parse_zettel_from_file(z_path):
 
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ START ▒▒▒▒▒▒▒▒▒▒▒▒▒
-main_menu()
+conn = None
+try: conn = sqlite3.connect(current_db_path)
+except Error as e: print(e); quit()
+finally: 
+	main_menu()
+	print('closing...')
+	conn.close()
