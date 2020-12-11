@@ -131,6 +131,7 @@ select_meta_all = "SELECT * FROM meta"
 select_main_id = "SELECT * FROM main WHERE id = ?"
 select_main_z_path = "SELECT * FROM main WHERE z_path = ?"
 select_main_all = "SELECT * FROM main"
+select_main_z_title = "SELECT * FROM main WHERE z_title = ? "
 select_main_z_title_like = "SELECT * FROM main WHERE z_title LIKE ? "
 select_main_z_body_like = "SELECT * FROM main WHERE z_body LIKE ? "
 select_main_z_path_like = "SELECT * FROM main WHERE z_path LIKE ? "
@@ -233,6 +234,7 @@ def read_tags_tag(tag): return query_tags(tag, current_db_path)
 def read_main_id(id): return query_db([id], select_main_id, current_db_path)[0] #only one zettel
 def read_main_z_path(name): return query_db([name], select_main_z_path, current_db_path)
 def read_main_all(): return query_db(None, select_main_all, current_db_path)
+def read_main_z_title(name): return query_db([name], select_main_z_title, current_db_path)
 def read_main_z_title_like(name): return query_db(['%'+name+'%'], select_main_z_title_like, current_db_path)
 def read_main_z_path_like(name): return query_db(['%'+name+'%'], select_main_z_path_like, current_db_path)
 def read_main_z_body_like(name): return query_db(['%'+name+'%'], select_main_z_body_like, current_db_path)
@@ -324,7 +326,7 @@ def rescan_meta(): #only when checking
 			tot_self_links += 1
 			write_self_links(link[1])
 	for title in zettel_titles_dupes:
-		entries = read_main_z_title_like(title)
+		entries = read_main_z_title(title)
 		for entry in entries:
 			tot_same_titles += 1
 			write_same_titles(entry[0])
