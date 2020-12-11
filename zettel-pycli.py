@@ -311,7 +311,8 @@ def rescan_meta(): #only when checking
 	for zettel in zettels:
 		z_id = zettel[0]
 		if not zettel[1] in zettel_titles: zettel_titles.append(zettel[1])
-		else: zettel_titles_dupes.append(zettel[1])
+		elif zettel[1] in zettel_titles and not zettel[1] in zettel_titles_dupes: 
+			zettel_titles_dupes.append(zettel[1])
 		if not zettel[1]: 
 			tot_no_titles += 1
 			write_no_titles(z_id)
@@ -670,7 +671,10 @@ def main_menu():
 		elif inp == "import": import_zettels();
 		elif inp == "compile": compile_myself();
 		elif inp == "git": git_menu(); 
-		elif inp == "q": return
+		elif inp == "q": 
+			print('closing...')
+			conn.close()
+			quit()
 		print_main_ops()
 
 def git_menu():
@@ -1958,5 +1962,3 @@ try: conn = sqlite3.connect(current_db_path)
 except Error as e: print(e); quit()
 finally: 
 	main_menu()
-	print('closing...')
-	conn.close()
