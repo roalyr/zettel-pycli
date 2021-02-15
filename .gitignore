@@ -1,1 +1,2 @@
 *.db
+!test_vault.db

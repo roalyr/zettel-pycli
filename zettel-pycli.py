@@ -1,5 +1,5 @@
 #▒▒▒▒▒▒▒▒▒▒▒▒ USER OPTIONS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-database_name = "my_vault" # default name for new databases
+database_name = "test_vault" # default name for new databases
 default_editor = "nano" # a text editor command to call by default
 # use "python" to disable prompt and always use native input
 zettel_sort_tags = True # if true - sorts alphabetically
