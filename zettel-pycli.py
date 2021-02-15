@@ -1,5 +1,5 @@
 #▒▒▒▒▒▒▒▒▒▒▒▒ USER OPTIONS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-database_name = "test_vault" # default name for new databases
+database_name = "my_vault" # default name for new databases
 default_editor = "nano" # a text editor command to call by default
 # use "python" to disable prompt and always use native input
 zettel_sort_tags = True # if true - sorts alphabetically
@@ -1891,7 +1891,7 @@ def init_new_db():
 				c.execute(create_no_titles_table); c.execute(create_taglist_table);
 				c.execute(create_same_titles_table); 
 				#write meta
-				c.execute(insert_meta, (database_name, dt_str, 0, 0, 0, 0, 0, 0,))
+				c.execute(insert_meta, (database_name, dt_str, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 				conn.commit()
 				p()
 			except Error as e: print(e); p(); main_menu()
@@ -2070,6 +2070,7 @@ def parse_zettel_from_file(z_path):
 
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ START ▒▒▒▒▒▒▒▒▒▒▒▒▒
+#db path exist check here
 conn = None
 try: conn = sqlite3.connect(current_db_path)
 except Error as e: print(e); quit()
