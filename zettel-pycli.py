@@ -1,12 +1,14 @@
 #▒▒▒▒▒▒▒▒▒▒▒▒ USER OPTIONS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-database_name = "my_vault" # default name for new databases
+database_name = "test_vault" # default name for new databases
 default_editor = "nano" # a text editor command to call by default
 # use "python" to disable prompt and always use native input
 zettel_sort_tags = True # if true - sorts alphabetically
 zettel_sort_links = False # if true - sorts alphabetically
 search_sort_tags = False # if true - sorts alphabetically
 search_sort_titles = False # if true - sorts alphabetically
-
+print_tags_when_printed_many = False
+print_links_when_printed_many = False 
+# this is a backup option, width is calculated automatically
 text_width_fallback = 55 #in characters 55...80 should be good
 
 #▒▒▒▒▒▒▒▒▒▒▒▒ CREDITS & LICENCE ▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -1287,15 +1289,15 @@ you can now preview and edit your new zettel
 
 def print_whole_zettel(zettel):
 	cl_divider()
-	print_single_zettel(zettel)
+	print_zettel(zettel, False)
 	
 def print_many_zettels(zettels):
 	cl()
 	for zettel in zettels:
 		divider()
-		print_single_zettel(zettel)
+		print_zettel(zettel, True)
 
-def print_single_zettel(zettel):
+def print_zettel(zettel, printing_many):
 	tw_links_in = tw_links_in_update(); tw_links_out = tw_links_out_update()
 	tw_tags = tw_tags_update(); tw_w = tw_w_update()
 	try: title = zettel[1]; body = zettel[3]
@@ -1315,14 +1317,27 @@ def print_single_zettel(zettel):
 		linked_zettels_in.append(linked_zettel)
 	links_out_str = str_from_list(zettel_sort_links, linked_zettels_out, 1, '', ' ░ ', '').strip()
 	links_in_str = str_from_list(zettel_sort_links, linked_zettels_in, 1, '', ' ░ ', '').strip()
+	divider_printed = False
 	#printing
 	print_header('░', title), print() 
 	for line in body.splitlines():
 		print(tw_w.fill('{0}'.format(line)))
-	print(); print(tw_tags.fill(tags_str)); print()
-	if links_out or links_in: print(' linked')
-	if links_out: print(tw_links_out.fill(links_out_str)); print()
-	if links_in: print(tw_links_in.fill(links_in_str)); print()
+	print(); 
+	if printing_many:
+		if print_tags_when_printed_many:
+			divider(); print(tw_tags.fill(tags_str)); print()
+			divider_printed = True
+		if print_links_when_printed_many:
+			if not divider_printed: divider()
+			if links_out or links_in: print(' linked')
+			if links_out: print(tw_links_out.fill(links_out_str)); #print()
+			if links_in: print(tw_links_in.fill(links_in_str)); 
+	else:
+		divider(); print(tw_tags.fill(tags_str)); print()
+		if links_out or links_in: print(' linked')
+		if links_out: print(tw_links_out.fill(links_out_str)); #print()
+		if links_in: print(tw_links_in.fill(links_in_str)); 
+	print()
 
 def print_link_desc(link):
 	tw = tw_update()
