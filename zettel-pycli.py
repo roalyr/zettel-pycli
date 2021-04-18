@@ -1,5 +1,5 @@
 #▒▒▒▒▒▒▒▒▒▒▒▒ USER OPTIONS ▒▒▒▒▒▒▒▒▒▒▒▒▒
-database_name = "test_vault" # default name for new databases
+database_name = "my_vault" # default name for new databases
 default_editor = "nano" # a text editor command to call by default
 # use "python" to disable prompt and always use native input
 zettel_sort_tags = True # if true - sorts alphabetically
@@ -42,6 +42,9 @@ text_width_fallback = 55 #in characters 55...80 should be good
 import os, fnmatch, shutil, pathlib, sqlite3, time, re, random, tempfile
 import subprocess, py_compile, gc, textwrap
 from sqlite3 import Error
+
+# SSH for termux to ask for key
+os.system("ssh-add /data/data/com.termux/files/usr/etc/ssh/id_ed25519")
 
 text_width = shutil.get_terminal_size((text_width_fallback, 24)).columns
 path = os.path.join(os.getcwd(), database_name)
